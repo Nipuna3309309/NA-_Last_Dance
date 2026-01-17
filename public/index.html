@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Y4S2 Dashboard - Be an A+ Student</title>
+    <link rel="icon" href="data:," />
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#6366f1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">Y4S2 Dashboard</div>
+        <nav class="nav">
+          <button class="nav-item active" data-category="">
+            All Tasks
+            <span id="todayBadge" class="badge hidden">0</span>
+          </button>
+          <button class="nav-item" data-category="liked">
+            <span class="nav-icon">&#9829;</span> Favorites
+          </button>
+          <button class="nav-item" data-category="Internship">Internship</button>
+          <button class="nav-item" data-category="Research Paper">Research Paper</button>
+          <button class="nav-item" data-category="IT4070">IT4070</button>
+          <button class="nav-item" data-category="IT4031">IT4031</button>
+          <button class="nav-item" data-category="IT4021">IT4021</button>
+          <button class="nav-item" data-category="Power BI/Apps">Power BI/Apps</button>
+          <button class="nav-item" data-category="Machine Build">Machine Build</button>
+          <div class="nav-divider"></div>
+          <button class="nav-item module-nav" data-module="calendar">
+            <span class="nav-icon">&#128197;</span> Calendar
+          </button>
+          <button class="nav-item module-nav" data-module="physical">
+            <span class="nav-icon">&#127939;</span> Physical
+          </button>
+          <button class="nav-item module-nav" data-module="plant">
+            <span class="nav-icon">&#127793;</span> Plant
+          </button>
+        </nav>
+        <div class="sidebar-footer">Local Storage</div>
+      </aside>
+
+      <main class="main">
+        <!-- Motivational Quote Scroller -->
+        <section class="quote-section">
+          <div class="quote-container">
+            <span class="quote-icon">&#10024;</span>
+            <div class="quote-scroller">
+              <div id="quoteText" class="quote-text"></div>
+            </div>
+            <button id="nextQuote" class="quote-btn" title="Next quote">&#8594;</button>
+          </div>
+        </section>
+
+        <header class="topbar">
+          <div class="filters">
+            <input id="searchInput" type="search" placeholder="Search tasks..." />
+            <select id="filterCategory">
+              <option value="">All categories</option>
+              <option>Internship</option>
+              <option>Research Paper</option>
+              <option>IT4070</option>
+              <option>IT4031</option>
+              <option>IT4021</option>
+              <option>Power BI/Apps</option>
+              <option>Machine Build</option>
+            </select>
+            <select id="filterStatus">
+              <option value="">All status</option>
+              <option>Not Started</option>
+              <option>In Progress</option>
+              <option>Blocked</option>
+              <option>Done</option>
+            </select>
+            <select id="filterPriority">
+              <option value="">All priorities</option>
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+          </div>
+          <div class="top-actions">
+            <button id="exportBtn" class="ghost">Export</button>
+            <button id="importBtn" class="ghost">Import</button>
+            <input id="importFile" type="file" accept="application/json" hidden />
+          </div>
+        </header>
+
+        <section id="progressSection" class="progress-section">
+          <div class="progress-stats">
+            <div class="stat">
+              <span id="statTotal" class="stat-value">0</span>
+              <span class="stat-label">Total</span>
+            </div>
+            <div class="stat">
+              <span id="statDone" class="stat-value">0</span>
+              <span class="stat-label">Done</span>
+            </div>
+            <div class="stat">
+              <span id="statInProgress" class="stat-value">0</span>
+              <span class="stat-label">Active</span>
+            </div>
+            <div class="stat streak-stat">
+              <span id="statStreak" class="stat-value">0</span>
+              <span class="stat-label">Streak</span>
+            </div>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar">
+              <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+            </div>
+            <span id="progressText" class="progress-text">0% complete</span>
+          </div>
+        </section>
+
+        <section class="toolbar">
+          <div class="view-tabs">
+            <button class="tab active" data-view="kanban">Kanban</button>
+            <button class="tab" data-view="table">Table</button>
+          </div>
+          <div class="view-tabs">
+            <button class="tab active" data-due="all">All</button>
+            <button class="tab" data-due="today">Today</button>
+            <button class="tab" data-due="overdue">Overdue</button>
+          </div>
+          <button id="newTaskBtn" class="primary pulse-btn">+ New Task</button>
+        </section>
+
+        <section id="viewContainer" class="view-container"></section>
+
+        <!-- Calendar Module -->
+        <section id="calendarContainer" class="view-container hidden">
+          <div class="calendar-header">
+            <button id="calendarPrev" class="ghost">&larr;</button>
+            <h2 id="calendarTitle">January 2025</h2>
+            <button id="calendarNext" class="ghost">&rarr;</button>
+          </div>
+          <div class="calendar-legend">
+            <span class="legend-item"><span class="legend-dot holiday"></span> Holiday</span>
+            <span class="legend-item"><span class="legend-dot study"></span> Study</span>
+            <span class="legend-item"><span class="legend-dot exercise"></span> Exercise</span>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+        </section>
+
+        <!-- Physical Tracker Module -->
+        <section id="physicalContainer" class="view-container hidden">
+          <div class="module-header">
+            <h2>Physical Activity</h2>
+            <button id="newPhysicalBtn" class="primary">+ Log Exercise</button>
+          </div>
+          <div class="physical-stats">
+            <div class="stat">
+              <span id="physicalStreak" class="stat-value">0</span>
+              <span class="stat-label">Day Streak</span>
+            </div>
+            <div class="stat">
+              <span id="physicalWeek" class="stat-value">0</span>
+              <span class="stat-label">This Week</span>
+            </div>
+            <div class="stat">
+              <span id="physicalMonth" class="stat-value">0</span>
+              <span class="stat-label">This Month</span>
+            </div>
+          </div>
+          <div id="physicalList" class="physical-list"></div>
+        </section>
+
+        <!-- Plant/Gamification Module -->
+        <section id="plantContainer" class="view-container hidden">
+          <div class="plant-wrapper">
+            <div id="plantDisplay" class="plant-display">
+              <div id="plantSvg" class="plant-svg"></div>
+              <div class="plant-water" id="plantWater"></div>
+            </div>
+            <div class="plant-info">
+              <h2 id="plantLevel">Seed</h2>
+              <div class="plant-progress-container">
+                <div class="plant-progress-bar">
+                  <div id="plantProgressFill" class="plant-progress-fill" style="width: 0%"></div>
+                </div>
+                <span id="plantProgressText" class="plant-progress-text">0 / 30 pts</span>
+              </div>
+              <div class="plant-stats">
+                <div class="plant-stat">
+                  <span id="plantTotalPoints" class="plant-stat-value">0</span>
+                  <span class="plant-stat-label">Total Points</span>
+                </div>
+                <div class="plant-stat">
+                  <span id="plantTodayPoints" class="plant-stat-value">0</span>
+                  <span class="plant-stat-label">Today</span>
+                </div>
+                <div class="plant-stat">
+                  <span id="plantWeekPoints" class="plant-stat-value">0</span>
+                  <span class="plant-stat-label">This Week</span>
+                </div>
+                <div class="plant-stat">
+                  <span id="plantStreak" class="plant-stat-value">0</span>
+                  <span class="plant-stat-label">Streak</span>
+                </div>
+              </div>
+              <button id="viewHistoryBtn" class="ghost">View Growth History</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div id="modalOverlay" class="modal-overlay">
+      <div class="modal">
+        <form id="taskForm" class="task-form">
+          <div class="form-header">
+            <h2 id="formTitle">New Task</h2>
+            <button type="button" id="cancelEdit" class="ghost">Cancel</button>
+          </div>
+          <div class="form-grid">
+            <label>
+              Title
+              <input name="title" id="titleInput" required placeholder="What needs to be done?" />
+            </label>
+            <label>
+              Category
+              <select name="category" id="categoryInput">
+                <option>Internship</option>
+                <option>Research Paper</option>
+                <option>IT4070</option>
+                <option>IT4031</option>
+                <option>IT4021</option>
+                <option>Power BI/Apps</option>
+                <option>Machine Build</option>
+              </select>
+            </label>
+            <label>
+              Status
+              <select name="status" id="statusInput">
+                <option>Not Started</option>
+                <option>In Progress</option>
+                <option>Blocked</option>
+                <option>Done</option>
+              </select>
+            </label>
+            <label>
+              Priority
+              <select name="priority" id="priorityInput">
+                <option>Low</option>
+                <option>Medium</option>
+                <option>High</option>
+              </select>
+            </label>
+            <label>
+              Due date
+              <input name="due_date" id="dueInput" type="date" />
+            </label>
+          </div>
+          <label>
+            Description
+            <textarea name="description" id="descriptionInput" rows="3" placeholder="Add more details..."></textarea>
+          </label>
+          <button type="submit" class="primary" id="saveBtn">Save Task</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Physical Log Modal -->
+    <div id="physicalModalOverlay" class="modal-overlay">
+      <div class="modal">
+        <form id="physicalForm" class="task-form">
+          <div class="form-header">
+            <h2 id="physicalFormTitle">Log Exercise</h2>
+            <button type="button" id="cancelPhysical" class="ghost">Cancel</button>
+          </div>
+          <div class="form-grid">
+            <label>
+              Exercise Type
+              <select name="exercise_type" id="exerciseTypeInput">
+                <option>Walking</option>
+                <option>Running</option>
+                <option>Cycling</option>
+                <option>Gym</option>
+                <option>Yoga</option>
+                <option>Swimming</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <label>
+              Duration (minutes)
+              <input name="duration_minutes" id="durationInput" type="number" min="1" required placeholder="30" />
+            </label>
+            <label>
+              Date
+              <input name="log_date" id="logDateInput" type="date" />
+            </label>
+          </div>
+          <label>
+            Notes
+            <textarea name="notes" id="physicalNotesInput" rows="2" placeholder="How did it go?"></textarea>
+          </label>
+          <button type="submit" class="primary">Save Exercise</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Study Session Modal -->
+    <div id="studyModalOverlay" class="modal-overlay">
+      <div class="modal">
+        <form id="studyForm" class="task-form">
+          <div class="form-header">
+            <h2 id="studyFormTitle">Log Study Session</h2>
+            <button type="button" id="cancelStudy" class="ghost">Cancel</button>
+          </div>
+          <div class="form-grid">
+            <label>
+              Category
+              <select name="category" id="studyCategoryInput">
+                <option value="">General</option>
+                <option>Internship</option>
+                <option>Research Paper</option>
+                <option>IT4070</option>
+                <option>IT4031</option>
+                <option>IT4021</option>
+                <option>Power BI/Apps</option>
+                <option>Machine Build</option>
+              </select>
+            </label>
+            <label>
+              Duration (minutes)
+              <input name="duration_minutes" id="studyDurationInput" type="number" min="1" required placeholder="30" />
+            </label>
+            <label>
+              Date
+              <input name="session_date" id="sessionDateInput" type="date" />
+            </label>
+          </div>
+          <label>
+            Notes
+            <textarea name="notes" id="studyNotesInput" rows="2" placeholder="What did you study?"></textarea>
+          </label>
+          <button type="submit" class="primary">Save Session</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Plant History Modal -->
+    <div id="historyModalOverlay" class="modal-overlay">
+      <div class="modal modal-lg">
+        <div class="form-header">
+          <h2>Growth History (Last 14 Days)</h2>
+          <button type="button" id="closeHistory" class="ghost">Close</button>
+        </div>
+        <div id="historyContent" class="history-content"></div>
+      </div>
+    </div>
+
+    <!-- Confetti Canvas -->
+    <canvas id="confettiCanvas"></canvas>
+
+    <div id="toast" class="toast"></div>
+
+    <!-- Keyboard Hints -->
+    <div class="keyboard-hint">
+      <div class="hint"><span class="kbd">N</span> New task</div>
+      <div class="hint"><span class="kbd">L</span> Toggle like</div>
+      <div class="hint"><span class="kbd">Esc</span> Close</div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
