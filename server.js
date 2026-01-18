@@ -44,13 +44,20 @@ ensureDbInit();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Middleware to ensure DB is ready before API routes
+// Health check endpoint (no DB)
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// Middleware to ensure DB is ready before other API routes
 app.use('/api', async (req, res, next) => {
+  if (req.path === '/health') return next();
   try {
     await ensureDbInit();
     next();
   } catch (err) {
-    res.status(500).json({ error: 'Database initialization failed' });
+    console.error('DB init error:', err);
+    res.status(500).json({ error: 'Database initialization failed', details: err.message });
   }
 });
 
