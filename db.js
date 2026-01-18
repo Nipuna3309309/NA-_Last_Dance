@@ -1,18 +1,10 @@
-const path = require('path');
-const fs = require('fs');
-const { DatabaseSync } = require('node:sqlite');
+const { createClient } = require('@libsql/client');
 
-// Use cloud persistent storage if available, otherwise use local
-// Azure: /home/data, Fly.io: /data, Glitch: .data, Local: current dir
-const dataDir = process.env.WEBSITE_SITE_NAME
-  ? path.join(process.env.HOME, 'data')  // Azure App Service
-  : fs.existsSync('/data')
-    ? '/data'                              // Fly.io volume
-    : fs.existsSync('.data')
-      ? '.data'                            // Glitch
-      : __dirname;                         // Local
-const dbPath = path.join(dataDir, 'y4s2.db');
-let db;
+// Turso database connection
+const db = createClient({
+  url: process.env.TURSO_DATABASE_URL || 'libsql://y4s2-nipuna3309309.aws-ap-south-1.turso.io',
+  authToken: process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Njg3NDk3MTEsImlkIjoiZTgyNjAyYWMtMWRlMy00NjBkLThkYTItNGQ5YWZlYzEyY2UwIiwicmlkIjoiNTZlOWJiY2EtMzc5NS00ZTlhLTk1MWItODkzMWEzNWIxMTk5In0.3DklfUgSR1JM3VFlrEvuWDqkGg8-xX8n9GW0O6xzFDLijJrfFQtZKz1x-blpgjedkeFu78zidsX2LZH0EkEuAw'
+});
 
 const CATEGORIES = [
   'Internship',
@@ -27,7 +19,6 @@ const STATUSES = ['Not Started', 'In Progress', 'Blocked', 'Done'];
 const PRIORITIES = ['Low', 'Medium', 'High'];
 const EXERCISE_TYPES = ['Walking', 'Running', 'Cycling', 'Gym', 'Yoga', 'Swimming', 'Other'];
 
-// Plant level definitions
 const PLANT_LEVELS = [
   { level: 0, name: 'Seed', min: 0, max: 29 },
   { level: 1, name: 'Sprout', min: 30, max: 79 },
@@ -37,7 +28,6 @@ const PLANT_LEVELS = [
   { level: 5, name: 'Legendary', min: 400, max: Infinity }
 ];
 
-// Sri Lanka Holidays 2025
 const HOLIDAYS_2025 = [
   { month: 1, day: 13, name: 'Duruthu Full Moon Poya Day', type: 'poya' },
   { month: 1, day: 14, name: 'Tamil Thai Pongal Day', type: 'public' },
@@ -66,17 +56,9 @@ const HOLIDAYS_2025 = [
   { month: 12, day: 25, name: 'Christmas Day', type: 'public' }
 ];
 
-function init() {
-  // Ensure data directory exists (for Azure persistent storage)
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-
-  db = new DatabaseSync(dbPath);
-  db.exec('PRAGMA journal_mode = WAL');
-
-  // Main tasks table with liked column
-  db.exec(`
+async function init() {
+  // Main tasks table
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS tasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -86,23 +68,17 @@ function init() {
       priority TEXT,
       due_date TEXT,
       liked INTEGER DEFAULT 0,
+      remind_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-    CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category);
-    CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+    )
   `);
-
-  // Add liked column if it doesn't exist (for existing databases)
-  try {
-    db.exec('ALTER TABLE tasks ADD COLUMN liked INTEGER DEFAULT 0');
-  } catch (e) {
-    // Column already exists
-  }
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)');
 
   // Subtasks table
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS subtasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       task_id INTEGER NOT NULL,
@@ -110,19 +86,12 @@ function init() {
       completed INTEGER DEFAULT 0,
       created_at TEXT NOT NULL,
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
+    )
   `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id)');
 
-  // Add remind_at column to tasks if it doesn't exist
-  try {
-    db.exec('ALTER TABLE tasks ADD COLUMN remind_at TEXT');
-  } catch (e) {
-    // Column already exists
-  }
-
-  // Points Ledger - anti-cheat core for gamification
-  db.exec(`
+  // Points Ledger
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS points_ledger (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_type TEXT NOT NULL,
@@ -131,14 +100,13 @@ function init() {
       points INTEGER NOT NULL,
       event_key TEXT UNIQUE NOT NULL,
       created_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_points_ledger_event_key ON points_ledger(event_key);
-    CREATE INDEX IF NOT EXISTS idx_points_ledger_created_at ON points_ledger(created_at);
-    CREATE INDEX IF NOT EXISTS idx_points_ledger_event_type ON points_ledger(event_type);
+    )
   `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_points_ledger_event_key ON points_ledger(event_key)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_points_ledger_created_at ON points_ledger(created_at)');
 
-  // Physical Logs - exercise tracking
-  db.exec(`
+  // Physical Logs
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS physical_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       exercise_type TEXT NOT NULL,
@@ -147,12 +115,12 @@ function init() {
       log_date TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_physical_logs_log_date ON physical_logs(log_date);
+    )
   `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_physical_logs_log_date ON physical_logs(log_date)');
 
-  // Study Sessions - optional study time tracking
-  db.exec(`
+  // Study Sessions
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS study_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       task_id INTEGER,
@@ -162,13 +130,12 @@ function init() {
       session_date TEXT NOT NULL,
       created_at TEXT NOT NULL,
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_study_sessions_session_date ON study_sessions(session_date);
-    CREATE INDEX IF NOT EXISTS idx_study_sessions_task_id ON study_sessions(task_id);
+    )
   `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_study_sessions_session_date ON study_sessions(session_date)');
 
   // Sri Lanka Holidays
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS sri_lanka_holidays (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       year INTEGER NOT NULL,
@@ -177,12 +144,12 @@ function init() {
       name TEXT NOT NULL,
       type TEXT DEFAULT 'public',
       UNIQUE(year, month, day)
-    );
-    CREATE INDEX IF NOT EXISTS idx_holidays_year ON sri_lanka_holidays(year);
+    )
   `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_holidays_year ON sri_lanka_holidays(year)');
 
   // Reminders
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS reminders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL,
@@ -192,71 +159,73 @@ function init() {
       remind_at TEXT NOT NULL,
       sent INTEGER DEFAULT 0,
       created_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_reminders_remind_at ON reminders(remind_at);
-    CREATE INDEX IF NOT EXISTS idx_reminders_sent ON reminders(sent);
+    )
   `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_reminders_remind_at ON reminders(remind_at)');
 
   // Load holidays for current year if not already loaded
   const currentYear = new Date().getFullYear();
-  const holidayCount = db.prepare('SELECT COUNT(*) as count FROM sri_lanka_holidays WHERE year = ?').get(currentYear);
-  if (holidayCount.count === 0) {
-    loadHolidaysForYear(currentYear, HOLIDAYS_2025);
+  const holidayCount = await db.execute({
+    sql: 'SELECT COUNT(*) as count FROM sri_lanka_holidays WHERE year = ?',
+    args: [currentYear]
+  });
+  if (holidayCount.rows[0].count === 0) {
+    await loadHolidaysForYear(currentYear, HOLIDAYS_2025);
   }
 }
 
-// Load holidays for a specific year
-function loadHolidaysForYear(year, holidays) {
-  db.prepare('DELETE FROM sri_lanka_holidays WHERE year = ?').run(year);
-  const insert = db.prepare(`
-    INSERT INTO sri_lanka_holidays (year, month, day, name, type)
-    VALUES (@year, @month, @day, @name, @type)
-  `);
+async function loadHolidaysForYear(year, holidays) {
+  await db.execute({ sql: 'DELETE FROM sri_lanka_holidays WHERE year = ?', args: [year] });
   for (const h of holidays) {
-    insert.run({ year, ...h });
+    await db.execute({
+      sql: 'INSERT INTO sri_lanka_holidays (year, month, day, name, type) VALUES (?, ?, ?, ?, ?)',
+      args: [year, h.month, h.day, h.name, h.type]
+    });
   }
 }
 
-function getTaskById(id) {
-  const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
-  if (task) {
-    task.subtasks = db.prepare('SELECT * FROM subtasks WHERE task_id = ? ORDER BY id').all(id);
-  }
+async function getTaskById(id) {
+  const result = await db.execute({ sql: 'SELECT * FROM tasks WHERE id = ?', args: [id] });
+  if (result.rows.length === 0) return null;
+  const task = { ...result.rows[0] };
+  const subtasks = await db.execute({ sql: 'SELECT * FROM subtasks WHERE task_id = ? ORDER BY id', args: [id] });
+  task.subtasks = subtasks.rows;
   return task;
 }
 
-function getTasks(filters) {
+async function getTasks(filters) {
   let sql = 'SELECT * FROM tasks';
   const where = [];
-  const params = {};
+  const args = [];
 
   if (filters.search) {
-    where.push('(title LIKE @search OR description LIKE @search)');
-    params.search = `%${filters.search}%`;
+    where.push('(title LIKE ? OR description LIKE ?)');
+    args.push(`%${filters.search}%`, `%${filters.search}%`);
   }
   if (filters.category) {
-    where.push('category = @category');
-    params.category = filters.category;
+    where.push('category = ?');
+    args.push(filters.category);
   }
   if (filters.status) {
-    where.push('status = @status');
-    params.status = filters.status;
+    where.push('status = ?');
+    args.push(filters.status);
   }
   if (filters.priority) {
-    where.push('priority = @priority');
-    params.priority = filters.priority;
+    where.push('priority = ?');
+    args.push(filters.priority);
   }
   if (filters.liked) {
     where.push('liked = 1');
   }
   if (filters.due && filters.due !== 'all') {
     const today = new Date().toISOString().slice(0, 10);
-    params.today = today;
     if (filters.due === 'today') {
-      where.push('due_date = @today');
+      where.push('due_date = ?');
+      args.push(today);
     }
     if (filters.due === 'overdue') {
-      where.push('(due_date < @today AND due_date IS NOT NULL AND due_date != "")');
+      where.push('(due_date < ? AND due_date IS NOT NULL AND due_date != "")');
+      args.push(today);
     }
   }
 
@@ -265,150 +234,136 @@ function getTasks(filters) {
   }
   sql += ' ORDER BY liked DESC, updated_at DESC';
 
-  const tasks = db.prepare(sql).all(params);
+  const result = await db.execute({ sql, args });
+  const tasks = [];
 
-  // Fetch subtasks for each task
-  const subtaskStmt = db.prepare('SELECT * FROM subtasks WHERE task_id = ? ORDER BY id');
-  for (const task of tasks) {
-    task.subtasks = subtaskStmt.all(task.id);
+  for (const row of result.rows) {
+    const task = { ...row };
+    const subtasks = await db.execute({ sql: 'SELECT * FROM subtasks WHERE task_id = ? ORDER BY id', args: [row.id] });
+    task.subtasks = subtasks.rows;
+    tasks.push(task);
   }
 
   return tasks;
 }
 
-function createTask(data) {
+async function createTask(data) {
   const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO tasks (title, description, category, status, priority, due_date, liked, created_at, updated_at)
-    VALUES (@title, @description, @category, @status, @priority, @due_date, @liked, @created_at, @updated_at)
-  `);
-  const info = stmt.run({
-    title: data.title,
-    description: data.description || '',
-    category: data.category,
-    status: data.status,
-    priority: data.priority,
-    due_date: data.due_date || null,
-    liked: data.liked || 0,
-    created_at: now,
-    updated_at: now
+  const result = await db.execute({
+    sql: `INSERT INTO tasks (title, description, category, status, priority, due_date, liked, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [data.title, data.description || '', data.category, data.status, data.priority, data.due_date || null, data.liked || 0, now, now]
   });
-  return getTaskById(info.lastInsertRowid);
+  return await getTaskById(Number(result.lastInsertRowid));
 }
 
-function updateTask(id, updates) {
-  // Get current task to check for status change
-  const currentTask = getTaskById(id);
+async function updateTask(id, updates) {
+  const currentTask = await getTaskById(id);
   if (!currentTask) return null;
 
   const fields = [];
-  const params = { id };
+  const args = [];
 
   for (const key of ['title', 'description', 'category', 'status', 'priority', 'due_date', 'liked', 'remind_at']) {
     if (updates[key] !== undefined) {
-      fields.push(`${key} = @${key}`);
-      params[key] = updates[key];
+      fields.push(`${key} = ?`);
+      args.push(updates[key]);
     }
   }
 
-  if (!fields.length) return getTaskById(id);
+  if (!fields.length) return await getTaskById(id);
 
-  params.updated_at = new Date().toISOString();
-  fields.push('updated_at = @updated_at');
+  const now = new Date().toISOString();
+  fields.push('updated_at = ?');
+  args.push(now);
+  args.push(id);
 
-  const stmt = db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = @id`);
-  const info = stmt.run(params);
-  if (!info.changes) return null;
+  await db.execute({ sql: `UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`, args });
 
-  // Award points if status changed TO 'Done' (anti-cheat: only once per task)
   if (updates.status === 'Done' && currentTask.status !== 'Done') {
-    awardPoints('task_done', id, 'task', 10, `task_done_${id}`);
-    awardDailyStreakBonus();
+    await awardPoints('task_done', id, 'task', 10, `task_done_${id}`);
+    await awardDailyStreakBonus();
   }
 
-  return getTaskById(id);
+  return await getTaskById(id);
 }
 
-function deleteTask(id) {
-  // Subtasks are deleted automatically via CASCADE
-  return db.prepare('DELETE FROM tasks WHERE id = ?').run(id).changes > 0;
+async function deleteTask(id) {
+  const result = await db.execute({ sql: 'DELETE FROM tasks WHERE id = ?', args: [id] });
+  return result.rowsAffected > 0;
 }
 
-// Subtask functions
-function createSubtask(taskId, title) {
+async function createSubtask(taskId, title) {
   const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO subtasks (task_id, title, completed, created_at)
-    VALUES (@task_id, @title, 0, @created_at)
-  `);
-  const info = stmt.run({
-    task_id: taskId,
-    title: title,
-    created_at: now
+  const result = await db.execute({
+    sql: 'INSERT INTO subtasks (task_id, title, completed, created_at) VALUES (?, ?, 0, ?)',
+    args: [taskId, title, now]
   });
-
-  // Update parent task's updated_at
-  db.prepare('UPDATE tasks SET updated_at = ? WHERE id = ?').run(now, taskId);
-
-  return db.prepare('SELECT * FROM subtasks WHERE id = ?').get(info.lastInsertRowid);
+  await db.execute({ sql: 'UPDATE tasks SET updated_at = ? WHERE id = ?', args: [now, taskId] });
+  const subtask = await db.execute({ sql: 'SELECT * FROM subtasks WHERE id = ?', args: [Number(result.lastInsertRowid)] });
+  return subtask.rows[0];
 }
 
-function updateSubtask(id, updates) {
-  const subtask = db.prepare('SELECT * FROM subtasks WHERE id = ?').get(id);
-  if (!subtask) return null;
+async function updateSubtask(id, updates) {
+  const existing = await db.execute({ sql: 'SELECT * FROM subtasks WHERE id = ?', args: [id] });
+  if (existing.rows.length === 0) return null;
+  const subtask = existing.rows[0];
 
   const fields = [];
-  const params = { id };
+  const args = [];
 
   if (updates.title !== undefined) {
-    fields.push('title = @title');
-    params.title = updates.title;
+    fields.push('title = ?');
+    args.push(updates.title);
   }
   if (updates.completed !== undefined) {
-    fields.push('completed = @completed');
-    params.completed = updates.completed ? 1 : 0;
+    fields.push('completed = ?');
+    args.push(updates.completed ? 1 : 0);
   }
 
   if (!fields.length) return subtask;
 
-  db.prepare(`UPDATE subtasks SET ${fields.join(', ')} WHERE id = @id`).run(params);
+  args.push(id);
+  await db.execute({ sql: `UPDATE subtasks SET ${fields.join(', ')} WHERE id = ?`, args });
 
-  // Update parent task's updated_at
   const now = new Date().toISOString();
-  db.prepare('UPDATE tasks SET updated_at = ? WHERE id = ?').run(now, subtask.task_id);
+  await db.execute({ sql: 'UPDATE tasks SET updated_at = ? WHERE id = ?', args: [now, subtask.task_id] });
 
-  // Award points if subtask changed TO completed (anti-cheat: only once per subtask)
   if (updates.completed && !subtask.completed) {
-    awardPoints('subtask_done', id, 'subtask', 3, `subtask_done_${id}`);
-    awardDailyStreakBonus();
+    await awardPoints('subtask_done', id, 'subtask', 3, `subtask_done_${id}`);
+    await awardDailyStreakBonus();
   }
 
-  return db.prepare('SELECT * FROM subtasks WHERE id = ?').get(id);
+  const updated = await db.execute({ sql: 'SELECT * FROM subtasks WHERE id = ?', args: [id] });
+  return updated.rows[0];
 }
 
-function deleteSubtask(id) {
-  const subtask = db.prepare('SELECT * FROM subtasks WHERE id = ?').get(id);
-  if (!subtask) return false;
+async function deleteSubtask(id) {
+  const existing = await db.execute({ sql: 'SELECT * FROM subtasks WHERE id = ?', args: [id] });
+  if (existing.rows.length === 0) return false;
+  const subtask = existing.rows[0];
 
-  const result = db.prepare('DELETE FROM subtasks WHERE id = ?').run(id).changes > 0;
-
-  if (result) {
+  const result = await db.execute({ sql: 'DELETE FROM subtasks WHERE id = ?', args: [id] });
+  if (result.rowsAffected > 0) {
     const now = new Date().toISOString();
-    db.prepare('UPDATE tasks SET updated_at = ? WHERE id = ?').run(now, subtask.task_id);
+    await db.execute({ sql: 'UPDATE tasks SET updated_at = ? WHERE id = ?', args: [now, subtask.task_id] });
   }
-
-  return result;
+  return result.rowsAffected > 0;
 }
 
-function getSubtasks(taskId) {
-  return db.prepare('SELECT * FROM subtasks WHERE task_id = ? ORDER BY id').all(taskId);
+async function getSubtasks(taskId) {
+  const result = await db.execute({ sql: 'SELECT * FROM subtasks WHERE task_id = ? ORDER BY id', args: [taskId] });
+  return result.rows;
 }
 
-function exportTasks() {
-  const tasks = db.prepare('SELECT * FROM tasks ORDER BY id').all();
-  const subtaskStmt = db.prepare('SELECT * FROM subtasks WHERE task_id = ? ORDER BY id');
-  for (const task of tasks) {
-    task.subtasks = subtaskStmt.all(task.id);
+async function exportTasks() {
+  const result = await db.execute('SELECT * FROM tasks ORDER BY id');
+  const tasks = [];
+  for (const row of result.rows) {
+    const task = { ...row };
+    const subtasks = await db.execute({ sql: 'SELECT * FROM subtasks WHERE task_id = ? ORDER BY id', args: [row.id] });
+    task.subtasks = subtasks.rows;
+    tasks.push(task);
   }
   return tasks;
 }
@@ -428,129 +383,94 @@ function normalizeTask(task) {
   };
 }
 
-function importTasks(tasks) {
-  const insertWithId = db.prepare(`
-    INSERT INTO tasks (id, title, description, category, status, priority, due_date, liked, created_at, updated_at)
-    VALUES (@id, @title, @description, @category, @status, @priority, @due_date, @liked, @created_at, @updated_at)
-  `);
-  const insertNoId = db.prepare(`
-    INSERT INTO tasks (title, description, category, status, priority, due_date, liked, created_at, updated_at)
-    VALUES (@title, @description, @category, @status, @priority, @due_date, @liked, @created_at, @updated_at)
-  `);
-  const insertSubtask = db.prepare(`
-    INSERT INTO subtasks (task_id, title, completed, created_at)
-    VALUES (@task_id, @title, @completed, @created_at)
-  `);
+async function importTasks(tasks) {
+  await db.execute('DELETE FROM subtasks');
+  await db.execute('DELETE FROM tasks');
 
   let count = 0;
-  db.exec('BEGIN');
-  try {
-    db.prepare('DELETE FROM subtasks').run();
-    db.prepare('DELETE FROM tasks').run();
+  for (const row of tasks) {
+    if (!row || !row.title) continue;
+    const normalized = normalizeTask(row);
 
-    for (const row of tasks) {
-      if (!row || !row.title) continue;
-      const normalized = normalizeTask(row);
-      let taskId;
-
-      if (row.id) {
-        insertWithId.run({ id: row.id, ...normalized });
-        taskId = row.id;
-      } else {
-        const info = insertNoId.run(normalized);
-        taskId = info.lastInsertRowid;
-      }
-
-      // Import subtasks
-      if (Array.isArray(row.subtasks)) {
-        for (const subtask of row.subtasks) {
-          if (subtask && subtask.title) {
-            insertSubtask.run({
-              task_id: taskId,
-              title: subtask.title,
-              completed: subtask.completed ? 1 : 0,
-              created_at: subtask.created_at || new Date().toISOString()
-            });
-          }
-        }
-      }
-
-      count += 1;
+    let taskId;
+    if (row.id) {
+      await db.execute({
+        sql: `INSERT INTO tasks (id, title, description, category, status, priority, due_date, liked, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [row.id, normalized.title, normalized.description, normalized.category, normalized.status, normalized.priority, normalized.due_date, normalized.liked, normalized.created_at, normalized.updated_at]
+      });
+      taskId = row.id;
+    } else {
+      const result = await db.execute({
+        sql: `INSERT INTO tasks (title, description, category, status, priority, due_date, liked, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [normalized.title, normalized.description, normalized.category, normalized.status, normalized.priority, normalized.due_date, normalized.liked, normalized.created_at, normalized.updated_at]
+      });
+      taskId = Number(result.lastInsertRowid);
     }
 
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
+    if (Array.isArray(row.subtasks)) {
+      for (const subtask of row.subtasks) {
+        if (subtask && subtask.title) {
+          await db.execute({
+            sql: 'INSERT INTO subtasks (task_id, title, completed, created_at) VALUES (?, ?, ?, ?)',
+            args: [taskId, subtask.title, subtask.completed ? 1 : 0, subtask.created_at || new Date().toISOString()]
+          });
+        }
+      }
+    }
+    count += 1;
   }
-
   return count;
 }
 
-// === POINTS SYSTEM ===
-
-// Award points with anti-cheat (INSERT OR IGNORE for unique event_key)
-function awardPoints(eventType, entityId, entityType, points, eventKey) {
+async function awardPoints(eventType, entityId, entityType, points, eventKey) {
   try {
-    const stmt = db.prepare(`
-      INSERT OR IGNORE INTO points_ledger (event_type, entity_id, entity_type, points, event_key, created_at)
-      VALUES (@event_type, @entity_id, @entity_type, @points, @event_key, @created_at)
-    `);
-    const info = stmt.run({
-      event_type: eventType,
-      entity_id: entityId,
-      entity_type: entityType,
-      points: points,
-      event_key: eventKey,
-      created_at: new Date().toISOString()
+    await db.execute({
+      sql: `INSERT OR IGNORE INTO points_ledger (event_type, entity_id, entity_type, points, event_key, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [eventType, entityId, entityType, points, eventKey, new Date().toISOString()]
     });
-    return info.changes > 0; // True if points were actually awarded (not duplicate)
+    return true;
   } catch (err) {
     return false;
   }
 }
 
-// Award daily streak bonus (+5) on first activity of the day
-function awardDailyStreakBonus() {
+async function awardDailyStreakBonus() {
   const today = new Date().toISOString().slice(0, 10);
   const eventKey = `streak_bonus_${today}`;
-  return awardPoints('streak_bonus', null, 'daily', 5, eventKey);
+  return await awardPoints('streak_bonus', null, 'daily', 5, eventKey);
 }
 
-// Get points earned today
-function getPointsToday() {
+async function getPointsToday() {
   const today = new Date().toISOString().slice(0, 10);
-  const result = db.prepare(`
-    SELECT COALESCE(SUM(points), 0) as total
-    FROM points_ledger
-    WHERE date(created_at) = ?
-  `).get(today);
-  return result.total;
+  const result = await db.execute({
+    sql: `SELECT COALESCE(SUM(points), 0) as total FROM points_ledger WHERE date(created_at) = ?`,
+    args: [today]
+  });
+  return Number(result.rows[0].total);
 }
 
-// Get points earned this week (Monday to Sunday)
-function getPointsThisWeek() {
+async function getPointsThisWeek() {
   const now = new Date();
   const dayOfWeek = now.getDay();
   const monday = new Date(now);
   monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
   const weekStart = monday.toISOString().slice(0, 10);
 
-  const result = db.prepare(`
-    SELECT COALESCE(SUM(points), 0) as total
-    FROM points_ledger
-    WHERE date(created_at) >= ?
-  `).get(weekStart);
-  return result.total;
+  const result = await db.execute({
+    sql: `SELECT COALESCE(SUM(points), 0) as total FROM points_ledger WHERE date(created_at) >= ?`,
+    args: [weekStart]
+  });
+  return Number(result.rows[0].total);
 }
 
-// Get total points ever earned
-function getTotalPoints() {
-  const result = db.prepare('SELECT COALESCE(SUM(points), 0) as total FROM points_ledger').get();
-  return result.total;
+async function getTotalPoints() {
+  const result = await db.execute('SELECT COALESCE(SUM(points), 0) as total FROM points_ledger');
+  return Number(result.rows[0].total);
 }
 
-// Calculate current plant level from total points
 function getPlantLevel(totalPoints) {
   for (const level of PLANT_LEVELS) {
     if (totalPoints >= level.min && totalPoints <= level.max) {
@@ -560,9 +480,8 @@ function getPlantLevel(totalPoints) {
   return PLANT_LEVELS[PLANT_LEVELS.length - 1];
 }
 
-// Get full plant status
-function getPlantStatus() {
-  const totalPoints = getTotalPoints();
+async function getPlantStatus() {
+  const totalPoints = await getTotalPoints();
   const level = getPlantLevel(totalPoints);
   const nextLevel = PLANT_LEVELS[level.level + 1];
 
@@ -582,63 +501,51 @@ function getPlantStatus() {
     levelName: level.name,
     pointsToNextLevel,
     progressPercent,
-    todayPoints: getPointsToday(),
-    weekPoints: getPointsThisWeek(),
-    streak: calculateCombinedStreak()
+    todayPoints: await getPointsToday(),
+    weekPoints: await getPointsThisWeek(),
+    streak: await calculateCombinedStreak()
   };
 }
 
-// Get points history for last N days
-function getPointsHistory(days = 14) {
-  const history = [];
-  const stmt = db.prepare(`
-    SELECT
-      date(created_at) as date,
-      event_type,
-      SUM(points) as points
-    FROM points_ledger
-    WHERE date(created_at) >= date('now', ?)
-    GROUP BY date(created_at), event_type
-    ORDER BY date(created_at) DESC
-  `);
+async function getPointsHistory(days = 14) {
+  const result = await db.execute({
+    sql: `SELECT date(created_at) as date, event_type, SUM(points) as points
+          FROM points_ledger WHERE date(created_at) >= date('now', ?)
+          GROUP BY date(created_at), event_type ORDER BY date(created_at) DESC`,
+    args: [`-${days} days`]
+  });
 
-  const rows = stmt.all(`-${days} days`);
-
-  // Group by date
   const dateMap = {};
-  for (const row of rows) {
+  for (const row of result.rows) {
     if (!dateMap[row.date]) {
       dateMap[row.date] = { date: row.date, points: 0, sources: {} };
     }
-    dateMap[row.date].points += row.points;
-    dateMap[row.date].sources[row.event_type] = row.points;
+    dateMap[row.date].points += Number(row.points);
+    dateMap[row.date].sources[row.event_type] = Number(row.points);
   }
 
   return Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
 }
 
-// Calculate combined streak (study + physical activity)
-function calculateCombinedStreak() {
-  // Get all unique dates with any activity
-  const activityDates = db.prepare(`
+async function calculateCombinedStreak() {
+  const result = await db.execute(`
     SELECT DISTINCT date(created_at) as date FROM points_ledger
     WHERE event_type IN ('task_done', 'subtask_done', 'study_session', 'physical')
     ORDER BY date DESC
-  `).all().map(r => r.date);
+  `);
 
+  const activityDates = result.rows.map(r => r.date);
   if (activityDates.length === 0) return 0;
 
   let streak = 0;
   const today = new Date().toISOString().slice(0, 10);
   let checkDate = new Date(today);
 
-  // Check if today has activity, if not check yesterday
   const hasToday = activityDates.includes(today);
   if (!hasToday) {
     checkDate.setDate(checkDate.getDate() - 1);
   }
 
-  // Count consecutive days
   for (let i = 0; i < 365; i++) {
     const dateStr = checkDate.toISOString().slice(0, 10);
     if (activityDates.includes(dateStr)) {
@@ -652,24 +559,22 @@ function calculateCombinedStreak() {
   return streak;
 }
 
-// === PHYSICAL LOGS ===
-
-function getPhysicalLogs(filters = {}) {
+async function getPhysicalLogs(filters = {}) {
   let sql = 'SELECT * FROM physical_logs';
   const where = [];
-  const params = {};
+  const args = [];
 
   if (filters.from) {
-    where.push('log_date >= @from');
-    params.from = filters.from;
+    where.push('log_date >= ?');
+    args.push(filters.from);
   }
   if (filters.to) {
-    where.push('log_date <= @to');
-    params.to = filters.to;
+    where.push('log_date <= ?');
+    args.push(filters.to);
   }
   if (filters.exercise_type) {
-    where.push('exercise_type = @exercise_type');
-    params.exercise_type = filters.exercise_type;
+    where.push('exercise_type = ?');
+    args.push(filters.exercise_type);
   }
 
   if (where.length) {
@@ -677,101 +582,92 @@ function getPhysicalLogs(filters = {}) {
   }
   sql += ' ORDER BY log_date DESC, created_at DESC';
 
-  return db.prepare(sql).all(params);
+  const result = await db.execute({ sql, args });
+  return result.rows;
 }
 
-function getPhysicalLogById(id) {
-  return db.prepare('SELECT * FROM physical_logs WHERE id = ?').get(id);
+async function getPhysicalLogById(id) {
+  const result = await db.execute({ sql: 'SELECT * FROM physical_logs WHERE id = ?', args: [id] });
+  return result.rows[0] || null;
 }
 
-function createPhysicalLog(data) {
+async function createPhysicalLog(data) {
   const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO physical_logs (exercise_type, duration_minutes, notes, log_date, created_at, updated_at)
-    VALUES (@exercise_type, @duration_minutes, @notes, @log_date, @created_at, @updated_at)
-  `);
-  const info = stmt.run({
-    exercise_type: data.exercise_type,
-    duration_minutes: data.duration_minutes,
-    notes: data.notes || '',
-    log_date: data.log_date,
-    created_at: now,
-    updated_at: now
+  const result = await db.execute({
+    sql: `INSERT INTO physical_logs (exercise_type, duration_minutes, notes, log_date, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [data.exercise_type, data.duration_minutes, data.notes || '', data.log_date, now, now]
   });
 
-  const log = getPhysicalLogById(info.lastInsertRowid);
+  const log = await getPhysicalLogById(Number(result.lastInsertRowid));
 
-  // Award points: 1 point per 5 minutes
   const points = Math.floor(data.duration_minutes / 5);
   if (points > 0) {
-    awardPoints('physical', log.id, 'physical_log', points, `physical_${log.id}`);
+    await awardPoints('physical', log.id, 'physical_log', points, `physical_${log.id}`);
   }
-
-  // Award daily streak bonus on first activity
-  awardDailyStreakBonus();
+  await awardDailyStreakBonus();
 
   return log;
 }
 
-function updatePhysicalLog(id, updates) {
+async function updatePhysicalLog(id, updates) {
   const fields = [];
-  const params = { id };
+  const args = [];
 
   if (updates.exercise_type !== undefined) {
-    fields.push('exercise_type = @exercise_type');
-    params.exercise_type = updates.exercise_type;
+    fields.push('exercise_type = ?');
+    args.push(updates.exercise_type);
   }
   if (updates.duration_minutes !== undefined) {
-    fields.push('duration_minutes = @duration_minutes');
-    params.duration_minutes = updates.duration_minutes;
+    fields.push('duration_minutes = ?');
+    args.push(updates.duration_minutes);
   }
   if (updates.notes !== undefined) {
-    fields.push('notes = @notes');
-    params.notes = updates.notes;
+    fields.push('notes = ?');
+    args.push(updates.notes);
   }
   if (updates.log_date !== undefined) {
-    fields.push('log_date = @log_date');
-    params.log_date = updates.log_date;
+    fields.push('log_date = ?');
+    args.push(updates.log_date);
   }
 
-  if (!fields.length) return getPhysicalLogById(id);
+  if (!fields.length) return await getPhysicalLogById(id);
 
-  params.updated_at = new Date().toISOString();
-  fields.push('updated_at = @updated_at');
+  fields.push('updated_at = ?');
+  args.push(new Date().toISOString());
+  args.push(id);
 
-  const stmt = db.prepare(`UPDATE physical_logs SET ${fields.join(', ')} WHERE id = @id`);
-  const info = stmt.run(params);
-  if (!info.changes) return null;
+  const result = await db.execute({ sql: `UPDATE physical_logs SET ${fields.join(', ')} WHERE id = ?`, args });
+  if (result.rowsAffected === 0) return null;
 
-  return getPhysicalLogById(id);
+  return await getPhysicalLogById(id);
 }
 
-function deletePhysicalLog(id) {
-  return db.prepare('DELETE FROM physical_logs WHERE id = ?').run(id).changes > 0;
+async function deletePhysicalLog(id) {
+  const result = await db.execute({ sql: 'DELETE FROM physical_logs WHERE id = ?', args: [id] });
+  return result.rowsAffected > 0;
 }
 
-// === STUDY SESSIONS ===
-
-function getStudySessions(filters = {}) {
+async function getStudySessions(filters = {}) {
   let sql = 'SELECT * FROM study_sessions';
   const where = [];
-  const params = {};
+  const args = [];
 
   if (filters.from) {
-    where.push('session_date >= @from');
-    params.from = filters.from;
+    where.push('session_date >= ?');
+    args.push(filters.from);
   }
   if (filters.to) {
-    where.push('session_date <= @to');
-    params.to = filters.to;
+    where.push('session_date <= ?');
+    args.push(filters.to);
   }
   if (filters.category) {
-    where.push('category = @category');
-    params.category = filters.category;
+    where.push('category = ?');
+    args.push(filters.category);
   }
   if (filters.task_id) {
-    where.push('task_id = @task_id');
-    params.task_id = filters.task_id;
+    where.push('task_id = ?');
+    args.push(filters.task_id);
   }
 
   if (where.length) {
@@ -779,158 +675,138 @@ function getStudySessions(filters = {}) {
   }
   sql += ' ORDER BY session_date DESC, created_at DESC';
 
-  return db.prepare(sql).all(params);
+  const result = await db.execute({ sql, args });
+  return result.rows;
 }
 
-function getStudySessionById(id) {
-  return db.prepare('SELECT * FROM study_sessions WHERE id = ?').get(id);
+async function getStudySessionById(id) {
+  const result = await db.execute({ sql: 'SELECT * FROM study_sessions WHERE id = ?', args: [id] });
+  return result.rows[0] || null;
 }
 
-function createStudySession(data) {
+async function createStudySession(data) {
   const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO study_sessions (task_id, category, duration_minutes, notes, session_date, created_at)
-    VALUES (@task_id, @category, @duration_minutes, @notes, @session_date, @created_at)
-  `);
-  const info = stmt.run({
-    task_id: data.task_id || null,
-    category: data.category || null,
-    duration_minutes: data.duration_minutes,
-    notes: data.notes || '',
-    session_date: data.session_date,
-    created_at: now
+  const result = await db.execute({
+    sql: `INSERT INTO study_sessions (task_id, category, duration_minutes, notes, session_date, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [data.task_id || null, data.category || null, data.duration_minutes, data.notes || '', data.session_date, now]
   });
 
-  const session = getStudySessionById(info.lastInsertRowid);
+  const session = await getStudySessionById(Number(result.lastInsertRowid));
 
-  // Award points: 1 point per 10 minutes
   const points = Math.floor(data.duration_minutes / 10);
   if (points > 0) {
-    awardPoints('study_session', session.id, 'study_session', points, `study_session_${session.id}`);
+    await awardPoints('study_session', session.id, 'study_session', points, `study_session_${session.id}`);
   }
-
-  // Award daily streak bonus on first activity
-  awardDailyStreakBonus();
+  await awardDailyStreakBonus();
 
   return session;
 }
 
-function updateStudySession(id, updates) {
+async function updateStudySession(id, updates) {
   const fields = [];
-  const params = { id };
+  const args = [];
 
   if (updates.task_id !== undefined) {
-    fields.push('task_id = @task_id');
-    params.task_id = updates.task_id;
+    fields.push('task_id = ?');
+    args.push(updates.task_id);
   }
   if (updates.category !== undefined) {
-    fields.push('category = @category');
-    params.category = updates.category;
+    fields.push('category = ?');
+    args.push(updates.category);
   }
   if (updates.duration_minutes !== undefined) {
-    fields.push('duration_minutes = @duration_minutes');
-    params.duration_minutes = updates.duration_minutes;
+    fields.push('duration_minutes = ?');
+    args.push(updates.duration_minutes);
   }
   if (updates.notes !== undefined) {
-    fields.push('notes = @notes');
-    params.notes = updates.notes;
+    fields.push('notes = ?');
+    args.push(updates.notes);
   }
   if (updates.session_date !== undefined) {
-    fields.push('session_date = @session_date');
-    params.session_date = updates.session_date;
+    fields.push('session_date = ?');
+    args.push(updates.session_date);
   }
 
-  if (!fields.length) return getStudySessionById(id);
+  if (!fields.length) return await getStudySessionById(id);
 
-  const stmt = db.prepare(`UPDATE study_sessions SET ${fields.join(', ')} WHERE id = @id`);
-  const info = stmt.run(params);
-  if (!info.changes) return null;
+  args.push(id);
+  const result = await db.execute({ sql: `UPDATE study_sessions SET ${fields.join(', ')} WHERE id = ?`, args });
+  if (result.rowsAffected === 0) return null;
 
-  return getStudySessionById(id);
+  return await getStudySessionById(id);
 }
 
-function deleteStudySession(id) {
-  return db.prepare('DELETE FROM study_sessions WHERE id = ?').run(id).changes > 0;
+async function deleteStudySession(id) {
+  const result = await db.execute({ sql: 'DELETE FROM study_sessions WHERE id = ?', args: [id] });
+  return result.rowsAffected > 0;
 }
 
-// === CALENDAR ===
+async function getCalendarData(year, month) {
+  const holidays = await db.execute({
+    sql: `SELECT day, name, type FROM sri_lanka_holidays WHERE year = ? AND month = ? ORDER BY day`,
+    args: [year, month]
+  });
 
-function getCalendarData(year, month) {
-  // Get holidays for the month
-  const holidays = db.prepare(`
-    SELECT day, name, type FROM sri_lanka_holidays
-    WHERE year = ? AND month = ?
-    ORDER BY day
-  `).all(year, month);
-
-  // Get study activity days (tasks marked done in this month)
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
   const monthEnd = `${year}-${String(month).padStart(2, '0')}-31`;
 
-  const studyDays = db.prepare(`
-    SELECT
-      CAST(strftime('%d', updated_at) AS INTEGER) as day,
-      COUNT(*) as count
-    FROM tasks
-    WHERE status = 'Done'
-      AND date(updated_at) >= ? AND date(updated_at) <= ?
-    GROUP BY strftime('%d', updated_at)
-  `).all(monthStart, monthEnd);
+  const studyDays = await db.execute({
+    sql: `SELECT CAST(strftime('%d', updated_at) AS INTEGER) as day, COUNT(*) as count
+          FROM tasks WHERE status = 'Done' AND date(updated_at) >= ? AND date(updated_at) <= ?
+          GROUP BY strftime('%d', updated_at)`,
+    args: [monthStart, monthEnd]
+  });
 
-  // Add study sessions
-  const sessionDays = db.prepare(`
-    SELECT
-      CAST(strftime('%d', session_date) AS INTEGER) as day,
-      COUNT(*) as count
-    FROM study_sessions
-    WHERE date(session_date) >= ? AND date(session_date) <= ?
-    GROUP BY strftime('%d', session_date)
-  `).all(monthStart, monthEnd);
+  const sessionDays = await db.execute({
+    sql: `SELECT CAST(strftime('%d', session_date) AS INTEGER) as day, COUNT(*) as count
+          FROM study_sessions WHERE date(session_date) >= ? AND date(session_date) <= ?
+          GROUP BY strftime('%d', session_date)`,
+    args: [monthStart, monthEnd]
+  });
 
-  // Merge study counts
   const studyMap = {};
-  for (const d of studyDays) {
-    studyMap[d.day] = (studyMap[d.day] || 0) + d.count;
+  for (const d of studyDays.rows) {
+    studyMap[d.day] = (studyMap[d.day] || 0) + Number(d.count);
   }
-  for (const d of sessionDays) {
-    studyMap[d.day] = (studyMap[d.day] || 0) + d.count;
+  for (const d of sessionDays.rows) {
+    studyMap[d.day] = (studyMap[d.day] || 0) + Number(d.count);
   }
   const mergedStudyDays = Object.entries(studyMap).map(([day, count]) => ({ day: parseInt(day), count }));
 
-  // Get exercise activity days
-  const exerciseDays = db.prepare(`
-    SELECT
-      CAST(strftime('%d', log_date) AS INTEGER) as day,
-      COUNT(*) as count
-    FROM physical_logs
-    WHERE date(log_date) >= ? AND date(log_date) <= ?
-    GROUP BY strftime('%d', log_date)
-  `).all(monthStart, monthEnd);
+  const exerciseDays = await db.execute({
+    sql: `SELECT CAST(strftime('%d', log_date) AS INTEGER) as day, COUNT(*) as count
+          FROM physical_logs WHERE date(log_date) >= ? AND date(log_date) <= ?
+          GROUP BY strftime('%d', log_date)`,
+    args: [monthStart, monthEnd]
+  });
 
   return {
-    holidays,
+    holidays: holidays.rows,
     studyDays: mergedStudyDays,
-    exerciseDays
+    exerciseDays: exerciseDays.rows
   };
 }
 
-function getHolidays(year) {
-  return db.prepare('SELECT month, day, name, type FROM sri_lanka_holidays WHERE year = ? ORDER BY month, day').all(year);
+async function getHolidays(year) {
+  const result = await db.execute({
+    sql: 'SELECT month, day, name, type FROM sri_lanka_holidays WHERE year = ? ORDER BY month, day',
+    args: [year]
+  });
+  return result.rows;
 }
 
-// === REMINDERS ===
-
-function getReminders(filters = {}) {
+async function getReminders(filters = {}) {
   let sql = 'SELECT * FROM reminders';
   const where = [];
-  const params = {};
+  const args = [];
 
   if (filters.pending) {
     where.push('sent = 0');
   }
   if (filters.type) {
-    where.push('type = @type');
-    params.type = filters.type;
+    where.push('type = ?');
+    args.push(filters.type);
   }
 
   if (where.length) {
@@ -938,69 +814,63 @@ function getReminders(filters = {}) {
   }
   sql += ' ORDER BY remind_at ASC';
 
-  return db.prepare(sql).all(params);
+  const result = await db.execute({ sql, args });
+  return result.rows;
 }
 
-function getReminderById(id) {
-  return db.prepare('SELECT * FROM reminders WHERE id = ?').get(id);
+async function getReminderById(id) {
+  const result = await db.execute({ sql: 'SELECT * FROM reminders WHERE id = ?', args: [id] });
+  return result.rows[0] || null;
 }
 
-function createReminder(data) {
+async function createReminder(data) {
   const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO reminders (type, entity_id, entity_type, message, remind_at, sent, created_at)
-    VALUES (@type, @entity_id, @entity_type, @message, @remind_at, 0, @created_at)
-  `);
-  const info = stmt.run({
-    type: data.type,
-    entity_id: data.entity_id || null,
-    entity_type: data.entity_type || null,
-    message: data.message,
-    remind_at: data.remind_at,
-    created_at: now
+  const result = await db.execute({
+    sql: `INSERT INTO reminders (type, entity_id, entity_type, message, remind_at, sent, created_at)
+          VALUES (?, ?, ?, ?, ?, 0, ?)`,
+    args: [data.type, data.entity_id || null, data.entity_type || null, data.message, data.remind_at, now]
   });
-
-  return getReminderById(info.lastInsertRowid);
+  return await getReminderById(Number(result.lastInsertRowid));
 }
 
-function updateReminder(id, updates) {
+async function updateReminder(id, updates) {
   const fields = [];
-  const params = { id };
+  const args = [];
 
   if (updates.remind_at !== undefined) {
-    fields.push('remind_at = @remind_at');
-    params.remind_at = updates.remind_at;
+    fields.push('remind_at = ?');
+    args.push(updates.remind_at);
   }
   if (updates.sent !== undefined) {
-    fields.push('sent = @sent');
-    params.sent = updates.sent ? 1 : 0;
+    fields.push('sent = ?');
+    args.push(updates.sent ? 1 : 0);
   }
   if (updates.message !== undefined) {
-    fields.push('message = @message');
-    params.message = updates.message;
+    fields.push('message = ?');
+    args.push(updates.message);
   }
 
-  if (!fields.length) return getReminderById(id);
+  if (!fields.length) return await getReminderById(id);
 
-  const stmt = db.prepare(`UPDATE reminders SET ${fields.join(', ')} WHERE id = @id`);
-  const info = stmt.run(params);
-  if (!info.changes) return null;
+  args.push(id);
+  const result = await db.execute({ sql: `UPDATE reminders SET ${fields.join(', ')} WHERE id = ?`, args });
+  if (result.rowsAffected === 0) return null;
 
-  return getReminderById(id);
+  return await getReminderById(id);
 }
 
-function deleteReminder(id) {
-  return db.prepare('DELETE FROM reminders WHERE id = ?').run(id).changes > 0;
+async function deleteReminder(id) {
+  const result = await db.execute({ sql: 'DELETE FROM reminders WHERE id = ?', args: [id] });
+  return result.rowsAffected > 0;
 }
 
-// Get pending reminders that are due
-function getDueReminders() {
+async function getDueReminders() {
   const now = new Date().toISOString();
-  return db.prepare(`
-    SELECT * FROM reminders
-    WHERE sent = 0 AND remind_at <= ?
-    ORDER BY remind_at ASC
-  `).all(now);
+  const result = await db.execute({
+    sql: 'SELECT * FROM reminders WHERE sent = 0 AND remind_at <= ? ORDER BY remind_at ASC',
+    args: [now]
+  });
+  return result.rows;
 }
 
 module.exports = {
@@ -1016,7 +886,6 @@ module.exports = {
   getSubtasks,
   exportTasks,
   importTasks,
-  // Points system
   awardPoints,
   awardDailyStreakBonus,
   getPointsToday,
@@ -1025,30 +894,25 @@ module.exports = {
   getPlantStatus,
   getPointsHistory,
   calculateCombinedStreak,
-  // Physical logs
   getPhysicalLogs,
   getPhysicalLogById,
   createPhysicalLog,
   updatePhysicalLog,
   deletePhysicalLog,
-  // Study sessions
   getStudySessions,
   getStudySessionById,
   createStudySession,
   updateStudySession,
   deleteStudySession,
-  // Calendar
   getCalendarData,
   getHolidays,
   loadHolidaysForYear,
-  // Reminders
   getReminders,
   getReminderById,
   createReminder,
   updateReminder,
   deleteReminder,
   getDueReminders,
-  // Constants
   EXERCISE_TYPES,
   PLANT_LEVELS,
   CATEGORIES,

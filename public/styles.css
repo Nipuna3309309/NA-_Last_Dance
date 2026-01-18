@@ -2066,3 +2066,264 @@ select option {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============ GALAXY MODULE ============ */
+
+.galaxy-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: calc(100vh - 200px);
+  min-height: 500px;
+}
+
+.galaxy-controls {
+  text-align: center;
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1));
+  border-radius: 16px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.galaxy-controls h2 {
+  font-size: 1.8rem;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #818cf8, #c084fc, #f472b6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.galaxy-title-icon {
+  -webkit-text-fill-color: initial;
+  margin-right: 8px;
+}
+
+.galaxy-subtitle {
+  color: #94a3b8;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+}
+
+.galaxy-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.galaxy-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 0.95rem;
+}
+
+.galaxy-btn span {
+  font-size: 1.2rem;
+}
+
+.galaxy-modes {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.galaxy-mode {
+  padding: 8px 16px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 20px;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.galaxy-mode:hover {
+  border-color: rgba(99, 102, 241, 0.6);
+  color: #e2e8f0;
+}
+
+.galaxy-mode.active {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}
+
+.galaxy-viewport {
+  position: relative;
+  flex: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at center, #0c1222 0%, #000000 100%);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow:
+    0 0 60px rgba(99, 102, 241, 0.1),
+    inset 0 0 120px rgba(0, 0, 0, 0.5);
+}
+
+#galaxyCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+#handVideo {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 160px;
+  height: 120px;
+  border-radius: 12px;
+  border: 2px solid rgba(99, 102, 241, 0.5);
+  object-fit: cover;
+  transform: scaleX(-1);
+  opacity: 0.9;
+  z-index: 10;
+  display: none;
+}
+
+#handVideo.active {
+  display: block;
+}
+
+.hand-indicator {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.8), rgba(168, 85, 247, 0.4));
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  box-shadow:
+    0 0 30px rgba(99, 102, 241, 0.6),
+    0 0 60px rgba(168, 85, 247, 0.4);
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow:
+      0 0 30px rgba(99, 102, 241, 0.6),
+      0 0 60px rgba(168, 85, 247, 0.4);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow:
+      0 0 40px rgba(99, 102, 241, 0.8),
+      0 0 80px rgba(168, 85, 247, 0.6);
+  }
+}
+
+.galaxy-stats {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  gap: 16px;
+  font-size: 0.8rem;
+  color: rgba(148, 163, 184, 0.7);
+  font-family: 'Courier New', monospace;
+  z-index: 10;
+}
+
+/* Star explosion effect */
+@keyframes star-explode {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+.star-explosion {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: radial-gradient(circle, #fff, #6366f1);
+  border-radius: 50%;
+  animation: star-explode 0.5s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Galaxy loading state */
+.galaxy-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #94a3b8;
+}
+
+.galaxy-loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Nebula glow effect */
+.nebula-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.3;
+  pointer-events: none;
+  animation: nebula-pulse 4s ease-in-out infinite;
+}
+
+@keyframes nebula-pulse {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.1); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .galaxy-wrapper {
+    height: calc(100vh - 250px);
+  }
+
+  .galaxy-controls h2 {
+    font-size: 1.4rem;
+  }
+
+  #handVideo {
+    width: 120px;
+    height: 90px;
+  }
+
+  .galaxy-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .galaxy-btn {
+    width: 100%;
+    max-width: 200px;
+    justify-content: center;
+  }
+}

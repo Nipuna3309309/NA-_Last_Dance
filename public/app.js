@@ -198,6 +198,7 @@ const dueInput = document.getElementById('dueInput');
 const calendarContainer = document.getElementById('calendarContainer');
 const physicalContainer = document.getElementById('physicalContainer');
 const plantContainer = document.getElementById('plantContainer');
+const galaxyContainer = document.getElementById('galaxyContainer');
 const calendarGrid = document.getElementById('calendarGrid');
 const calendarTitle = document.getElementById('calendarTitle');
 const calendarPrev = document.getElementById('calendarPrev');
@@ -1321,6 +1322,7 @@ function switchModule(module) {
   calendarContainer.classList.add('hidden');
   physicalContainer.classList.add('hidden');
   plantContainer.classList.add('hidden');
+  if (galaxyContainer) galaxyContainer.classList.add('hidden');
 
   // Hide task-specific UI when on other modules
   const taskUI = document.querySelector('.topbar');
@@ -1351,6 +1353,7 @@ function switchModule(module) {
       plantContainer.classList.remove('hidden');
       loadPlantStatus();
     }
+    // Galaxy is handled by the override at the bottom of the file
   }
 
   // Update nav active states
@@ -2050,3 +2053,480 @@ async function initPWA() {
 
 // Start PWA initialization
 initPWA();
+
+// ============ GALAXY MODULE ============
+
+const galaxy = {
+  canvas: null,
+  ctx: null,
+  stars: [],
+  mode: 'spiral',
+  handX: 0,
+  handY: 0,
+  handActive: false,
+  camera: null,
+  hands: null,
+  animationId: null,
+  lastTime: 0,
+  fps: 0,
+  frameCount: 0,
+  lastFpsUpdate: 0,
+  initialized: false,
+  mouseDown: false
+};
+
+// Star class
+class Star {
+  constructor(x, y, canvas, mode) {
+    this.canvas = canvas;
+    this.reset(x, y, mode);
+  }
+
+  reset(x, y, mode) {
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+
+    if (mode === 'spiral') {
+      const angle = Math.random() * Math.PI * 6;
+      const distance = Math.random() * Math.min(centerX, centerY) * 0.8;
+      this.x = centerX + Math.cos(angle) * distance * (1 + angle * 0.05);
+      this.y = centerY + Math.sin(angle) * distance * (1 + angle * 0.05);
+      this.baseAngle = angle;
+      this.distance = distance;
+    } else if (mode === 'cluster') {
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.random();
+      const distance = Math.pow(r, 0.5) * Math.min(centerX, centerY) * 0.7;
+      this.x = centerX + Math.cos(angle) * distance;
+      this.y = centerY + Math.sin(angle) * distance;
+    } else if (mode === 'nebula') {
+      this.x = x !== undefined ? x : Math.random() * this.canvas.width;
+      this.y = y !== undefined ? y : Math.random() * this.canvas.height;
+    } else {
+      this.x = x !== undefined ? x : Math.random() * this.canvas.width;
+      this.y = y !== undefined ? y : Math.random() * this.canvas.height;
+    }
+
+    this.originX = this.x;
+    this.originY = this.y;
+    this.vx = 0;
+    this.vy = 0;
+    this.size = Math.random() * 2.5 + 0.5;
+    this.brightness = Math.random() * 0.5 + 0.5;
+    this.twinkleSpeed = Math.random() * 0.02 + 0.01;
+    this.twinkleOffset = Math.random() * Math.PI * 2;
+    this.scattered = false;
+    this.returnSpeed = 0.02 + Math.random() * 0.02;
+
+    // Color based on mode
+    if (mode === 'nebula') {
+      const colors = ['#ff6b9d', '#c084fc', '#60a5fa', '#34d399', '#fbbf24'];
+      this.color = colors[Math.floor(Math.random() * colors.length)];
+    } else {
+      const temp = Math.random();
+      if (temp < 0.3) this.color = '#ffeedd';
+      else if (temp < 0.5) this.color = '#aaccff';
+      else if (temp < 0.7) this.color = '#ffffcc';
+      else if (temp < 0.85) this.color = '#ffccaa';
+      else this.color = '#ff9999';
+    }
+  }
+
+  scatter(forceX, forceY, strength) {
+    const dx = this.x - forceX;
+    const dy = this.y - forceY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const maxDist = 200;
+
+    if (dist < maxDist) {
+      const force = (1 - dist / maxDist) * strength;
+      const angle = Math.atan2(dy, dx);
+      this.vx += Math.cos(angle) * force * 15;
+      this.vy += Math.sin(angle) * force * 15;
+      this.scattered = true;
+    }
+  }
+
+  update(time) {
+    // Apply velocity with friction
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vx *= 0.96;
+    this.vy *= 0.96;
+
+    // Return to origin when scattered
+    if (this.scattered && Math.abs(this.vx) < 0.5 && Math.abs(this.vy) < 0.5) {
+      const dx = this.originX - this.x;
+      const dy = this.originY - this.y;
+      this.x += dx * this.returnSpeed;
+      this.y += dy * this.returnSpeed;
+
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
+        this.x = this.originX;
+        this.y = this.originY;
+        this.scattered = false;
+      }
+    }
+
+    // Twinkle effect
+    this.currentBrightness = this.brightness * (0.7 + 0.3 * Math.sin(time * this.twinkleSpeed + this.twinkleOffset));
+  }
+
+  draw(ctx) {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.globalAlpha = this.currentBrightness;
+    ctx.fill();
+
+    // Glow effect for larger stars
+    if (this.size > 1.5) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size * 2, 0, Math.PI * 2);
+      const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 2);
+      gradient.addColorStop(0, this.color);
+      gradient.addColorStop(1, 'transparent');
+      ctx.fillStyle = gradient;
+      ctx.globalAlpha = this.currentBrightness * 0.3;
+      ctx.fill();
+    }
+
+    ctx.globalAlpha = 1;
+  }
+}
+
+function initGalaxy() {
+  if (galaxy.initialized) return;
+
+  galaxy.canvas = document.getElementById('galaxyCanvas');
+  if (!galaxy.canvas) return;
+
+  galaxy.ctx = galaxy.canvas.getContext('2d');
+  resizeGalaxyCanvas();
+  createStars();
+  galaxy.initialized = true;
+
+  // Event listeners
+  window.addEventListener('resize', resizeGalaxyCanvas);
+
+  // Mouse interaction
+  galaxy.canvas.addEventListener('mousemove', (e) => {
+    if (!galaxy.handActive) {
+      const rect = galaxy.canvas.getBoundingClientRect();
+      galaxy.handX = e.clientX - rect.left;
+      galaxy.handY = e.clientY - rect.top;
+    }
+  });
+
+  galaxy.canvas.addEventListener('mousedown', () => {
+    galaxy.mouseDown = true;
+  });
+
+  galaxy.canvas.addEventListener('mouseup', () => {
+    galaxy.mouseDown = false;
+  });
+
+  galaxy.canvas.addEventListener('mouseleave', () => {
+    galaxy.mouseDown = false;
+  });
+
+  // Touch support
+  galaxy.canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const rect = galaxy.canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    galaxy.handX = touch.clientX - rect.left;
+    galaxy.handY = touch.clientY - rect.top;
+    scatterStars(galaxy.handX, galaxy.handY, 1);
+  });
+
+  // Mode buttons
+  document.querySelectorAll('.galaxy-mode').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.galaxy-mode').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      galaxy.mode = btn.dataset.mode;
+      createStars();
+    });
+  });
+
+  // Camera buttons
+  const startCameraBtn = document.getElementById('startCameraBtn');
+  const stopCameraBtn = document.getElementById('stopCameraBtn');
+  const resetGalaxyBtn = document.getElementById('resetGalaxyBtn');
+
+  if (startCameraBtn) {
+    startCameraBtn.addEventListener('click', startHandTracking);
+  }
+
+  if (stopCameraBtn) {
+    stopCameraBtn.addEventListener('click', stopHandTracking);
+  }
+
+  if (resetGalaxyBtn) {
+    resetGalaxyBtn.addEventListener('click', () => {
+      createStars();
+      showToast('Galaxy reset!', 'success');
+    });
+  }
+}
+
+function resizeGalaxyCanvas() {
+  if (!galaxy.canvas) return;
+  const rect = galaxy.canvas.parentElement.getBoundingClientRect();
+  galaxy.canvas.width = rect.width;
+  galaxy.canvas.height = rect.height;
+  if (galaxy.stars.length > 0) createStars();
+}
+
+function createStars() {
+  galaxy.stars = [];
+  const starCount = Math.min(2000, Math.floor((galaxy.canvas.width * galaxy.canvas.height) / 400));
+
+  for (let i = 0; i < starCount; i++) {
+    galaxy.stars.push(new Star(undefined, undefined, galaxy.canvas, galaxy.mode));
+  }
+
+  updateStarCount();
+}
+
+function scatterStars(x, y, strength) {
+  galaxy.stars.forEach(star => {
+    star.scatter(x, y, strength);
+  });
+}
+
+function updateStarCount() {
+  const starCountEl = document.getElementById('starCount');
+  if (starCountEl) {
+    starCountEl.textContent = `Stars: ${galaxy.stars.length}`;
+  }
+}
+
+function updateFPS(timestamp) {
+  galaxy.frameCount++;
+  if (timestamp - galaxy.lastFpsUpdate >= 1000) {
+    galaxy.fps = galaxy.frameCount;
+    galaxy.frameCount = 0;
+    galaxy.lastFpsUpdate = timestamp;
+
+    const fpsCountEl = document.getElementById('fpsCount');
+    if (fpsCountEl) {
+      fpsCountEl.textContent = `FPS: ${galaxy.fps}`;
+    }
+  }
+}
+
+function animateGalaxy(timestamp) {
+  if (state.activeModule !== 'galaxy') {
+    galaxy.animationId = null;
+    return;
+  }
+
+  galaxy.animationId = requestAnimationFrame(animateGalaxy);
+
+  // Calculate delta time
+  const deltaTime = timestamp - galaxy.lastTime;
+  galaxy.lastTime = timestamp;
+
+  updateFPS(timestamp);
+
+  // Clear canvas with fade effect
+  galaxy.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+  galaxy.ctx.fillRect(0, 0, galaxy.canvas.width, galaxy.canvas.height);
+
+  // Draw nebula background for nebula mode
+  if (galaxy.mode === 'nebula') {
+    drawNebula();
+  }
+
+  // Mouse/touch scatter effect
+  if (galaxy.mouseDown && !galaxy.handActive) {
+    scatterStars(galaxy.handX, galaxy.handY, 0.5);
+  }
+
+  // Update and draw stars
+  galaxy.stars.forEach(star => {
+    star.update(timestamp);
+    star.draw(galaxy.ctx);
+  });
+
+  // Draw hand indicator
+  if (galaxy.handActive) {
+    drawHandIndicator();
+  }
+}
+
+function drawNebula() {
+  const ctx = galaxy.ctx;
+  const centerX = galaxy.canvas.width / 2;
+  const centerY = galaxy.canvas.height / 2;
+
+  // Draw colorful nebula clouds
+  const nebulaColors = [
+    { x: centerX - 100, y: centerY - 50, color: 'rgba(147, 51, 234, 0.1)', size: 200 },
+    { x: centerX + 80, y: centerY + 30, color: 'rgba(59, 130, 246, 0.08)', size: 180 },
+    { x: centerX, y: centerY - 80, color: 'rgba(236, 72, 153, 0.08)', size: 150 },
+  ];
+
+  nebulaColors.forEach(nebula => {
+    const gradient = ctx.createRadialGradient(nebula.x, nebula.y, 0, nebula.x, nebula.y, nebula.size);
+    gradient.addColorStop(0, nebula.color);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, galaxy.canvas.width, galaxy.canvas.height);
+  });
+}
+
+function drawHandIndicator() {
+  const indicator = document.getElementById('handIndicator');
+  if (indicator) {
+    indicator.style.left = galaxy.handX + 'px';
+    indicator.style.top = galaxy.handY + 'px';
+  }
+}
+
+async function startHandTracking() {
+  const video = document.getElementById('handVideo');
+  const indicator = document.getElementById('handIndicator');
+  const startBtn = document.getElementById('startCameraBtn');
+  const stopBtn = document.getElementById('stopCameraBtn');
+
+  if (!video || typeof Hands === 'undefined') {
+    showToast('Hand tracking not available', 'error');
+    return;
+  }
+
+  try {
+    // Initialize MediaPipe Hands
+    galaxy.hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    galaxy.hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 0,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    galaxy.hands.onResults((results) => {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const hand = results.multiHandLandmarks[0];
+        // Use index finger tip (landmark 8) or palm center
+        const landmark = hand[8]; // Index finger tip
+
+        // Convert normalized coordinates to canvas coordinates
+        galaxy.handX = (1 - landmark.x) * galaxy.canvas.width; // Mirror
+        galaxy.handY = landmark.y * galaxy.canvas.height;
+        galaxy.handActive = true;
+
+        if (indicator) {
+          indicator.classList.remove('hidden');
+        }
+
+        // Scatter stars based on hand movement
+        scatterStars(galaxy.handX, galaxy.handY, 1.2);
+      } else {
+        galaxy.handActive = false;
+        if (indicator) {
+          indicator.classList.add('hidden');
+        }
+      }
+    });
+
+    // Start camera
+    galaxy.camera = new Camera(video, {
+      onFrame: async () => {
+        await galaxy.hands.send({ image: video });
+      },
+      width: 640,
+      height: 480
+    });
+
+    await galaxy.camera.start();
+
+    video.classList.add('active');
+    if (startBtn) startBtn.classList.add('hidden');
+    if (stopBtn) stopBtn.classList.remove('hidden');
+
+    showToast('Camera started! Wave your hand!', 'success');
+
+  } catch (error) {
+    console.error('Failed to start hand tracking:', error);
+    showToast('Could not access camera', 'error');
+  }
+}
+
+function stopHandTracking() {
+  const video = document.getElementById('handVideo');
+  const indicator = document.getElementById('handIndicator');
+  const startBtn = document.getElementById('startCameraBtn');
+  const stopBtn = document.getElementById('stopCameraBtn');
+
+  if (galaxy.camera) {
+    galaxy.camera.stop();
+    galaxy.camera = null;
+  }
+
+  if (galaxy.hands) {
+    galaxy.hands.close();
+    galaxy.hands = null;
+  }
+
+  galaxy.handActive = false;
+
+  if (video) {
+    video.classList.remove('active');
+    video.srcObject = null;
+  }
+
+  if (indicator) {
+    indicator.classList.add('hidden');
+  }
+
+  if (startBtn) startBtn.classList.remove('hidden');
+  if (stopBtn) stopBtn.classList.add('hidden');
+
+  showToast('Camera stopped', 'success');
+}
+
+function startGalaxyAnimation() {
+  if (!galaxy.animationId) {
+    galaxy.lastTime = performance.now();
+    galaxy.animationId = requestAnimationFrame(animateGalaxy);
+  }
+}
+
+function stopGalaxyAnimation() {
+  if (galaxy.animationId) {
+    cancelAnimationFrame(galaxy.animationId);
+    galaxy.animationId = null;
+  }
+  stopHandTracking();
+}
+
+// Update switchModule to handle galaxy
+const originalSwitchModule = switchModule;
+switchModule = function(module) {
+  // Stop galaxy animation when switching away
+  if (state.activeModule === 'galaxy' && module !== 'galaxy') {
+    stopGalaxyAnimation();
+  }
+
+  // Call original function
+  originalSwitchModule(module);
+
+  // Start galaxy animation when switching to galaxy
+  if (module === 'galaxy') {
+    const galaxyContainer = document.getElementById('galaxyContainer');
+    if (galaxyContainer) {
+      galaxyContainer.classList.remove('hidden');
+    }
+    initGalaxy();
+    setTimeout(() => {
+      resizeGalaxyCanvas();
+      startGalaxyAnimation();
+    }, 100);
+  }
+};

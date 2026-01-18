@@ -11,6 +11,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css" />
+    <!-- MediaPipe Hands for gesture tracking -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   </head>
   <body>
     <div class="app">
@@ -40,6 +43,9 @@
           </button>
           <button class="nav-item module-nav" data-module="plant">
             <span class="nav-icon">&#127793;</span> Plant
+          </button>
+          <button class="nav-item module-nav" data-module="galaxy">
+            <span class="nav-icon">&#127756;</span> Galaxy
           </button>
         </nav>
         <div class="sidebar-footer">Local Storage</div>
@@ -205,6 +211,43 @@
                 </div>
               </div>
               <button id="viewHistoryBtn" class="ghost">View Growth History</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Galaxy Playground Module -->
+        <section id="galaxyContainer" class="view-container hidden">
+          <div class="galaxy-wrapper">
+            <div class="galaxy-controls">
+              <h2><span class="galaxy-title-icon">&#127756;</span> Galaxy Playground</h2>
+              <p class="galaxy-subtitle">Wave your hand to scatter the stars!</p>
+              <div class="galaxy-buttons">
+                <button id="startCameraBtn" class="primary galaxy-btn">
+                  <span>&#127909;</span> Start Camera
+                </button>
+                <button id="stopCameraBtn" class="ghost galaxy-btn hidden">
+                  <span>&#9209;</span> Stop Camera
+                </button>
+                <button id="resetGalaxyBtn" class="ghost galaxy-btn">
+                  <span>&#128260;</span> Reset Galaxy
+                </button>
+              </div>
+              <div class="galaxy-modes">
+                <button class="galaxy-mode active" data-mode="spiral">Spiral</button>
+                <button class="galaxy-mode" data-mode="cluster">Cluster</button>
+                <button class="galaxy-mode" data-mode="nebula">Nebula</button>
+              </div>
+            </div>
+            <div class="galaxy-viewport">
+              <canvas id="galaxyCanvas"></canvas>
+              <video id="handVideo" autoplay playsinline></video>
+              <div id="handIndicator" class="hand-indicator hidden">
+                <span>&#9995;</span>
+              </div>
+              <div id="galaxyStats" class="galaxy-stats">
+                <span id="starCount">Stars: 0</span>
+                <span id="fpsCount">FPS: 0</span>
+              </div>
             </div>
           </div>
         </section>
