@@ -641,6 +641,12 @@ app.delete('/api/reminders/:id', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Y4S2 dashboard running at http://localhost:${PORT}`);
-});
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Y4S2 dashboard running at http://localhost:${PORT}`);
+  });
+}
+
+// Export for Vercel
+module.exports = app;

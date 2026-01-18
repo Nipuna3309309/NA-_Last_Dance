@@ -2,7 +2,23 @@
   "permissions": {
     "allow": [
       "Bash(dir:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(powershell -Command \"C:/Users/sylve/.fly/bin/flyctl.exe auth login\")",
+      "Bash(powershell -Command \"C:/Users/sylve/.fly/bin/flyctl.exe apps create y4s2-dashboard\")",
+      "Bash(powershell -Command \"C:/Users/sylve/.fly/bin/flyctl.exe volumes create y4s2_data --region sin --size 1 --yes\")",
+      "Bash(powershell -Command:*)",
+      "WebFetch(domain:fly.io)",
+      "WebSearch",
+      "WebFetch(domain:glitch.com)",
+      "WebFetch(domain:azure.microsoft.com)",
+      "Bash(npm install:*)",
+      "Bash(taskkill:*)",
+      "Bash(koyeb:*)",
+      "Bash(git add:*)",
+      "Bash(git restore:*)",
+      "Bash(git commit:*)",
+      "Bash(/tmp/koyeb/koyeb.exe version:*)",
+      "Bash(git push:*)"
     ]
   }
 }
