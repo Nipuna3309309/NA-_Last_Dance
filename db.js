@@ -1,4 +1,4 @@
-const { createClient } = require('@libsql/client');
+const { createClient } = require('@libsql/client/web');
 
 // Turso database connection
 const db = createClient({

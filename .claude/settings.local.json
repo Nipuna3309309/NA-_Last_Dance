@@ -24,7 +24,10 @@
       "Bash(npx vercel --yes)",
       "Bash(npx vercel login)",
       "Bash(npx vercel:*)",
-      "WebFetch(domain:y4s2-dashboard.vercel.app)"
+      "WebFetch(domain:y4s2-dashboard.vercel.app)",
+      "Bash(render:*)",
+      "Bash(npm ls:*)",
+      "Bash(printf:*)"
     ]
   }
 }
