@@ -18,7 +18,13 @@
       "Bash(git restore:*)",
       "Bash(git commit:*)",
       "Bash(/tmp/koyeb/koyeb.exe version:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(vercel --version:*)",
+      "Bash(npx vercel --version)",
+      "Bash(npx vercel --yes)",
+      "Bash(npx vercel login)",
+      "Bash(npx vercel:*)",
+      "WebFetch(domain:y4s2-dashboard.vercel.app)"
     ]
   }
 }

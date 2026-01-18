@@ -23,15 +23,36 @@ function validateEnum(value, list, field) {
   return list.includes(value) ? null : `${field} must be one of: ${list.join(', ')}`;
 }
 
-// Initialize database then start server
-db.init().then(() => {
-  console.log('Database initialized');
-}).catch(err => {
-  console.error('Database init error:', err);
-});
+// Database initialization promise for serverless
+let dbInitPromise = null;
+function ensureDbInit() {
+  if (!dbInitPromise) {
+    dbInitPromise = db.init().then(() => {
+      console.log('Database initialized');
+    }).catch(err => {
+      console.error('Database init error:', err);
+      dbInitPromise = null; // Allow retry on error
+      throw err;
+    });
+  }
+  return dbInitPromise;
+}
+
+// Start initialization immediately
+ensureDbInit();
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Middleware to ensure DB is ready before API routes
+app.use('/api', async (req, res, next) => {
+  try {
+    await ensureDbInit();
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Database initialization failed' });
+  }
+});
 
 // Get all tasks
 app.get('/api/tasks', async (req, res) => {
