@@ -239,6 +239,7 @@
                 <button class="galaxy-mode active" data-mode="spiral">Spiral</button>
                 <button class="galaxy-mode" data-mode="cluster">Cluster</button>
                 <button class="galaxy-mode" data-mode="nebula">Nebula</button>
+                <button class="galaxy-mode" data-mode="solar">Solar System</button>
               </div>
             </div>
             <div class="galaxy-viewport">
@@ -312,6 +313,46 @@
                 <button id="urgeTimerDoneBtn" class="primary nofap-btn">I Resisted!</button>
                 <button id="urgeTimerCancelBtn" class="ghost nofap-btn">Cancel</button>
               </div>
+            </div>
+
+            <!-- Daily Journal Section -->
+            <div class="diary-section">
+              <div class="diary-header">
+                <h3>Daily Journal</h3>
+                <span id="diaryDate" class="diary-date"></span>
+              </div>
+              <form id="diaryForm" class="diary-form">
+                <div class="diary-mood">
+                  <label>How are you feeling? <span id="diaryMoodValue">5</span>/10</label>
+                  <input type="range" id="diaryMoodSlider" min="1" max="10" value="5" />
+                  <div class="mood-labels">
+                    <span>Terrible</span>
+                    <span>Great</span>
+                  </div>
+                </div>
+                <label class="diary-label">
+                  How do you feel right now?
+                  <textarea id="diaryFeeling" rows="2" placeholder="Describe your current emotional state..."></textarea>
+                </label>
+                <label class="diary-label">
+                  What triggered you today?
+                  <textarea id="diaryTriggers" rows="2" placeholder="Any urges, situations, or environments that were challenging..."></textarea>
+                </label>
+                <label class="diary-label">
+                  What helped you stay strong?
+                  <textarea id="diaryWhatHelped" rows="2" placeholder="Strategies, activities, or people that helped..."></textarea>
+                </label>
+                <label class="diary-label">
+                  What are you grateful for?
+                  <textarea id="diaryGrateful" rows="2" placeholder="List things you're thankful for today..."></textarea>
+                </label>
+                <label class="diary-label">
+                  Free journal
+                  <textarea id="diaryJournal" rows="4" placeholder="Write anything else on your mind..."></textarea>
+                </label>
+                <button type="submit" class="primary nofap-btn" id="diarySaveBtn">Save Journal Entry</button>
+              </form>
+              <div id="diaryPastEntries" class="diary-past-entries"></div>
             </div>
 
             <!-- History Section -->

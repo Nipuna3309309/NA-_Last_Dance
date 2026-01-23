@@ -2413,6 +2413,131 @@ function scheduleNoFapReminder() {
 wireNoFapEvents();
 scheduleNoFapReminder();
 
+// === DIARY / JOURNAL ===
+
+const diaryForm = document.getElementById('diaryForm');
+const diaryMoodSlider = document.getElementById('diaryMoodSlider');
+const diaryMoodValue = document.getElementById('diaryMoodValue');
+const diaryFeeling = document.getElementById('diaryFeeling');
+const diaryTriggers = document.getElementById('diaryTriggers');
+const diaryWhatHelped = document.getElementById('diaryWhatHelped');
+const diaryGrateful = document.getElementById('diaryGrateful');
+const diaryJournal = document.getElementById('diaryJournal');
+const diaryDate = document.getElementById('diaryDate');
+const diaryPastEntries = document.getElementById('diaryPastEntries');
+const diarySaveBtn = document.getElementById('diarySaveBtn');
+
+async function loadDiaryToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (diaryDate) diaryDate.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  try {
+    const response = await fetch(`/api/diary?date=${today}`);
+    const entry = await response.json();
+    if (entry) {
+      if (diaryMoodSlider) { diaryMoodSlider.value = entry.mood || 5; if (diaryMoodValue) diaryMoodValue.textContent = entry.mood || 5; }
+      if (diaryFeeling) diaryFeeling.value = entry.feeling || '';
+      if (diaryTriggers) diaryTriggers.value = entry.triggers || '';
+      if (diaryWhatHelped) diaryWhatHelped.value = entry.what_helped || '';
+      if (diaryGrateful) diaryGrateful.value = entry.grateful_for || '';
+      if (diaryJournal) diaryJournal.value = entry.journal || '';
+      if (diarySaveBtn) diarySaveBtn.textContent = 'Update Journal Entry';
+    } else {
+      if (diarySaveBtn) diarySaveBtn.textContent = 'Save Journal Entry';
+    }
+  } catch (e) {
+    console.error('Failed to load diary:', e);
+  }
+
+  loadDiaryPastEntries();
+}
+
+async function loadDiaryPastEntries() {
+  if (!diaryPastEntries) return;
+  try {
+    const response = await fetch('/api/diary?limit=7');
+    const entries = await response.json();
+    if (!Array.isArray(entries) || entries.length === 0) {
+      diaryPastEntries.innerHTML = '';
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const past = entries.filter(e => e.entry_date !== today);
+    if (past.length === 0) { diaryPastEntries.innerHTML = ''; return; }
+
+    diaryPastEntries.innerHTML = '<h4>Past Entries</h4>' + past.map(entry => {
+      const date = new Date(entry.entry_date);
+      const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      const moodEmoji = entry.mood >= 8 ? '&#128513;' : entry.mood >= 6 ? '&#128522;' : entry.mood >= 4 ? '&#128528;' : '&#128542;';
+      return `
+        <div class="diary-past-item">
+          <div class="diary-past-header">
+            <span class="diary-past-date">${dateStr}</span>
+            <span class="diary-past-mood">${moodEmoji} ${entry.mood}/10</span>
+          </div>
+          ${entry.journal ? `<p class="diary-past-text">${entry.journal.slice(0, 150)}${entry.journal.length > 150 ? '...' : ''}</p>` : ''}
+          ${entry.grateful_for ? `<p class="diary-past-grateful">Grateful: ${entry.grateful_for.slice(0, 100)}</p>` : ''}
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error('Failed to load past entries:', e);
+  }
+}
+
+async function saveDiaryEntry() {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const response = await fetch('/api/diary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        entry_date: today,
+        mood: diaryMoodSlider ? parseInt(diaryMoodSlider.value, 10) : 5,
+        feeling: diaryFeeling ? diaryFeeling.value : '',
+        triggers: diaryTriggers ? diaryTriggers.value : '',
+        what_helped: diaryWhatHelped ? diaryWhatHelped.value : '',
+        grateful_for: diaryGrateful ? diaryGrateful.value : '',
+        journal: diaryJournal ? diaryJournal.value : ''
+      })
+    });
+    if (response.ok) {
+      showToast('Journal saved! +3 points', 'success');
+      if (diarySaveBtn) diarySaveBtn.textContent = 'Update Journal Entry';
+      loadDiaryPastEntries();
+    } else {
+      showToast('Failed to save journal', 'error');
+    }
+  } catch (e) {
+    console.error('Failed to save diary:', e);
+    showToast('Failed to save journal', 'error');
+  }
+}
+
+function wireDiaryEvents() {
+  if (diaryMoodSlider) {
+    diaryMoodSlider.addEventListener('input', () => {
+      if (diaryMoodValue) diaryMoodValue.textContent = diaryMoodSlider.value;
+    });
+  }
+  if (diaryForm) {
+    diaryForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      saveDiaryEntry();
+    });
+  }
+}
+
+wireDiaryEvents();
+
+// Update loadNoFapStatus to also load diary
+const _origLoadNoFap = loadNoFapStatus;
+loadNoFapStatus = async function() {
+  await _origLoadNoFap();
+  loadDiaryToday();
+};
+
 // ============ GALAXY MODULE ============
 
 const galaxy = {
@@ -2554,6 +2679,157 @@ class Star {
   }
 }
 
+// Solar System Planets
+const PLANETS = [
+  { name: 'Mercury', color: '#b5b5b5', size: 3, orbit: 0.08, speed: 4.15 },
+  { name: 'Venus', color: '#e8cda0', size: 5, orbit: 0.13, speed: 1.62 },
+  { name: 'Earth', color: '#6b93d6', size: 5.5, orbit: 0.19, speed: 1.0 },
+  { name: 'Mars', color: '#c1440e', size: 4, orbit: 0.25, speed: 0.53 },
+  { name: 'Jupiter', color: '#c88b3a', size: 14, orbit: 0.38, speed: 0.084 },
+  { name: 'Saturn', color: '#e4d191', size: 12, orbit: 0.50, speed: 0.034, rings: true },
+  { name: 'Uranus', color: '#7de8e8', size: 8, orbit: 0.62, speed: 0.012 },
+  { name: 'Neptune', color: '#4b70dd', size: 7.5, orbit: 0.74, speed: 0.006 }
+];
+
+class Planet {
+  constructor(data, canvas) {
+    this.name = data.name;
+    this.color = data.color;
+    this.size = data.size;
+    this.orbitFraction = data.orbit;
+    this.speedMultiplier = data.speed;
+    this.hasRings = data.rings || false;
+    this.canvas = canvas;
+    this.angle = Math.random() * Math.PI * 2;
+    this.vx = 0;
+    this.vy = 0;
+    this.scattered = false;
+  }
+
+  getOrbitRadius() {
+    return this.orbitFraction * Math.min(this.canvas.width, this.canvas.height) * 0.45;
+  }
+
+  getPosition() {
+    const cx = this.canvas.width / 2;
+    const cy = this.canvas.height / 2;
+    const r = this.getOrbitRadius();
+    return {
+      x: cx + Math.cos(this.angle) * r + this.vx,
+      y: cy + Math.sin(this.angle) * r + this.vy
+    };
+  }
+
+  scatter(forceX, forceY, strength) {
+    const pos = this.getPosition();
+    const dx = pos.x - forceX;
+    const dy = pos.y - forceY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 150) {
+      const force = (1 - dist / 150) * strength;
+      this.vx += (dx / dist) * force * 8;
+      this.vy += (dy / dist) * force * 8;
+      this.scattered = true;
+    }
+  }
+
+  update(deltaTime) {
+    this.angle += this.speedMultiplier * 0.001 * (deltaTime || 16);
+
+    if (this.scattered) {
+      this.vx *= 0.95;
+      this.vy *= 0.95;
+      if (Math.abs(this.vx) < 0.1 && Math.abs(this.vy) < 0.1) {
+        this.vx = 0;
+        this.vy = 0;
+        this.scattered = false;
+      }
+    }
+  }
+
+  drawOrbit(ctx) {
+    const cx = this.canvas.width / 2;
+    const cy = this.canvas.height / 2;
+    const r = this.getOrbitRadius();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  draw(ctx) {
+    const pos = this.getPosition();
+
+    // Planet glow
+    const glowGradient = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, this.size * 2.5);
+    glowGradient.addColorStop(0, this.color + '40');
+    glowGradient.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, this.size * 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = glowGradient;
+    ctx.fill();
+
+    // Rings (Saturn)
+    if (this.hasRings) {
+      ctx.beginPath();
+      ctx.ellipse(pos.x, pos.y, this.size * 2.2, this.size * 0.6, 0.3, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(228, 209, 145, 0.5)';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+
+    // Planet body
+    const gradient = ctx.createRadialGradient(pos.x - this.size * 0.3, pos.y - this.size * 0.3, 0, pos.x, pos.y, this.size);
+    gradient.addColorStop(0, '#ffffff40');
+    gradient.addColorStop(0.5, this.color);
+    gradient.addColorStop(1, this.color + '80');
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, this.size, 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // Name label
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.name, pos.x, pos.y + this.size + 14);
+  }
+}
+
+function drawSun(ctx, canvas) {
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const sunSize = 22;
+
+  // Sun glow layers
+  for (let i = 3; i > 0; i--) {
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, sunSize * (1 + i * 0.8));
+    gradient.addColorStop(0, `rgba(255, 200, 50, ${0.15 / i})`);
+    gradient.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.arc(cx, cy, sunSize * (1 + i * 0.8), 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+  }
+
+  // Sun body
+  const sunGradient = ctx.createRadialGradient(cx - 5, cy - 5, 0, cx, cy, sunSize);
+  sunGradient.addColorStop(0, '#fff5d6');
+  sunGradient.addColorStop(0.4, '#ffcc33');
+  sunGradient.addColorStop(1, '#ff8800');
+  ctx.beginPath();
+  ctx.arc(cx, cy, sunSize, 0, Math.PI * 2);
+  ctx.fillStyle = sunGradient;
+  ctx.fill();
+}
+
+galaxy.planets = [];
+
+function createSolarSystem() {
+  galaxy.planets = PLANETS.map(p => new Planet(p, galaxy.canvas));
+}
+
 function initGalaxy() {
   if (galaxy.initialized) return;
 
@@ -2597,6 +2873,9 @@ function initGalaxy() {
     galaxy.handX = touch.clientX - rect.left;
     galaxy.handY = touch.clientY - rect.top;
     scatterStars(galaxy.handX, galaxy.handY, 1);
+    if (galaxy.mode === 'solar') {
+      galaxy.planets.forEach(p => p.scatter(galaxy.handX, galaxy.handY, 1));
+    }
   });
 
   // Mode buttons
@@ -2640,10 +2919,20 @@ function resizeGalaxyCanvas() {
 
 function createStars() {
   galaxy.stars = [];
-  const starCount = Math.min(2000, Math.floor((galaxy.canvas.width * galaxy.canvas.height) / 400));
 
-  for (let i = 0; i < starCount; i++) {
-    galaxy.stars.push(new Star(undefined, undefined, galaxy.canvas, galaxy.mode));
+  if (galaxy.mode === 'solar') {
+    // Fewer background stars for solar system
+    const starCount = Math.min(500, Math.floor((galaxy.canvas.width * galaxy.canvas.height) / 1500));
+    for (let i = 0; i < starCount; i++) {
+      galaxy.stars.push(new Star(undefined, undefined, galaxy.canvas, 'cluster'));
+    }
+    createSolarSystem();
+  } else {
+    galaxy.planets = [];
+    const starCount = Math.min(2000, Math.floor((galaxy.canvas.width * galaxy.canvas.height) / 400));
+    for (let i = 0; i < starCount; i++) {
+      galaxy.stars.push(new Star(undefined, undefined, galaxy.canvas, galaxy.mode));
+    }
   }
 
   updateStarCount();
@@ -2702,6 +2991,9 @@ function animateGalaxy(timestamp) {
   // Mouse/touch scatter effect
   if (galaxy.mouseDown && !galaxy.handActive) {
     scatterStars(galaxy.handX, galaxy.handY, 0.5);
+    if (galaxy.mode === 'solar') {
+      galaxy.planets.forEach(p => p.scatter(galaxy.handX, galaxy.handY, 0.5));
+    }
   }
 
   // Update and draw stars
@@ -2709,6 +3001,16 @@ function animateGalaxy(timestamp) {
     star.update(timestamp);
     star.draw(galaxy.ctx);
   });
+
+  // Draw solar system if in solar mode
+  if (galaxy.mode === 'solar' && galaxy.planets.length > 0) {
+    galaxy.planets.forEach(p => p.drawOrbit(galaxy.ctx));
+    drawSun(galaxy.ctx, galaxy.canvas);
+    galaxy.planets.forEach(p => {
+      p.update(deltaTime);
+      p.draw(galaxy.ctx);
+    });
+  }
 
   // Draw hand indicator
   if (galaxy.handActive) {
@@ -2784,8 +3086,11 @@ async function startHandTracking() {
           indicator.classList.remove('hidden');
         }
 
-        // Scatter stars based on hand movement
+        // Scatter stars and planets based on hand movement
         scatterStars(galaxy.handX, galaxy.handY, 1.2);
+        if (galaxy.mode === 'solar') {
+          galaxy.planets.forEach(p => p.scatter(galaxy.handX, galaxy.handY, 1.2));
+        }
       } else {
         galaxy.handActive = false;
         if (indicator) {

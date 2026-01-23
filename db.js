@@ -189,6 +189,23 @@ async function init() {
   `);
   await db.execute('CREATE INDEX IF NOT EXISTS idx_nofap_urges_created ON nofap_urges(created_at)');
 
+  // Diary / Journal entries
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS diary_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entry_date TEXT NOT NULL UNIQUE,
+      mood INTEGER DEFAULT 5,
+      feeling TEXT,
+      triggers TEXT,
+      what_helped TEXT,
+      grateful_for TEXT,
+      journal TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_diary_date ON diary_entries(entry_date)');
+
   // Load holidays for current year if not already loaded
   const currentYear = new Date().getFullYear();
   const holidayCount = await db.execute({
@@ -1066,6 +1083,80 @@ async function getNoFapHistory(days = 30) {
   return { logs: logs.rows, urges: urges.rows };
 }
 
+// === DIARY / JOURNAL FUNCTIONS ===
+
+async function getDiaryEntry(date) {
+  const result = await db.execute({
+    sql: 'SELECT * FROM diary_entries WHERE entry_date = ?',
+    args: [date]
+  });
+  return result.rows[0] || null;
+}
+
+async function getDiaryEntries(limit = 30) {
+  const result = await db.execute({
+    sql: 'SELECT * FROM diary_entries ORDER BY entry_date DESC LIMIT ?',
+    args: [limit]
+  });
+  return result.rows;
+}
+
+async function saveDiaryEntry(data) {
+  const now = new Date().toISOString();
+  const today = data.entry_date || now.slice(0, 10);
+
+  const existing = await getDiaryEntry(today);
+
+  if (existing) {
+    // Update existing entry
+    await db.execute({
+      sql: `UPDATE diary_entries SET mood = ?, feeling = ?, triggers = ?, what_helped = ?, grateful_for = ?, journal = ?, updated_at = ? WHERE entry_date = ?`,
+      args: [
+        data.mood || existing.mood,
+        data.feeling !== undefined ? data.feeling : existing.feeling,
+        data.triggers !== undefined ? data.triggers : existing.triggers,
+        data.what_helped !== undefined ? data.what_helped : existing.what_helped,
+        data.grateful_for !== undefined ? data.grateful_for : existing.grateful_for,
+        data.journal !== undefined ? data.journal : existing.journal,
+        now,
+        today
+      ]
+    });
+    return await getDiaryEntry(today);
+  } else {
+    // Create new entry
+    await db.execute({
+      sql: `INSERT INTO diary_entries (entry_date, mood, feeling, triggers, what_helped, grateful_for, journal, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        today,
+        data.mood || 5,
+        data.feeling || '',
+        data.triggers || '',
+        data.what_helped || '',
+        data.grateful_for || '',
+        data.journal || '',
+        now,
+        now
+      ]
+    });
+
+    // Award points for journaling (3 points)
+    await awardPoints('diary_entry', null, 'diary', 3, `diary_${today}`);
+    await awardDailyStreakBonus();
+
+    return await getDiaryEntry(today);
+  }
+}
+
+async function deleteDiaryEntry(date) {
+  const result = await db.execute({
+    sql: 'DELETE FROM diary_entries WHERE entry_date = ?',
+    args: [date]
+  });
+  return result.rowsAffected > 0;
+}
+
 module.exports = {
   init,
   getTasks,
@@ -1106,6 +1197,10 @@ module.exports = {
   updateReminder,
   deleteReminder,
   getDueReminders,
+  getDiaryEntry,
+  getDiaryEntries,
+  saveDiaryEntry,
+  deleteDiaryEntry,
   getNoFapStatus,
   getNoFapStreak,
   logNoFapRelapse,

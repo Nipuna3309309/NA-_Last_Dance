@@ -740,6 +740,55 @@ app.get('/api/nofap/motivation', (req, res) => {
   res.json({ motivation: quotes[Math.floor(Math.random() * quotes.length)] });
 });
 
+// === DIARY / JOURNAL API ===
+
+// Get today's diary entry (or a specific date)
+app.get('/api/diary', async (req, res) => {
+  try {
+    if (req.query.date) {
+      const entry = await db.getDiaryEntry(req.query.date);
+      return res.json(entry || null);
+    }
+    const entries = await db.getDiaryEntries(parseInt(req.query.limit, 10) || 30);
+    res.json(entries);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load diary' });
+  }
+});
+
+// Save or update diary entry
+app.post('/api/diary', async (req, res) => {
+  const body = req.body || {};
+  try {
+    const entry = await db.saveDiaryEntry({
+      entry_date: body.entry_date || new Date().toISOString().slice(0, 10),
+      mood: parseInt(body.mood, 10) || 5,
+      feeling: body.feeling || '',
+      triggers: body.triggers || '',
+      what_helped: body.what_helped || '',
+      grateful_for: body.grateful_for || '',
+      journal: body.journal || ''
+    });
+    res.status(201).json(entry);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save diary entry' });
+  }
+});
+
+// Delete diary entry
+app.delete('/api/diary/:date', async (req, res) => {
+  try {
+    const ok = await db.deleteDiaryEntry(req.params.date);
+    if (!ok) return res.status(404).json({ error: 'Entry not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete diary entry' });
+  }
+});
+
 // For local development
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
