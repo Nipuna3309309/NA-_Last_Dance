@@ -163,6 +163,32 @@ async function init() {
   `);
   await db.execute('CREATE INDEX IF NOT EXISTS idx_reminders_remind_at ON reminders(remind_at)');
 
+  // NoFap/Habit Tracker - Logs (relapses and daily check-ins)
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS nofap_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      notes TEXT,
+      log_date TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_nofap_logs_date ON nofap_logs(log_date)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_nofap_logs_type ON nofap_logs(type)');
+
+  // NoFap/Habit Tracker - Urge events
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS nofap_urges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      intensity INTEGER NOT NULL DEFAULT 5,
+      resisted INTEGER NOT NULL DEFAULT 1,
+      duration_seconds INTEGER,
+      notes TEXT,
+      created_at TEXT NOT NULL
+    )
+  `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_nofap_urges_created ON nofap_urges(created_at)');
+
   // Load holidays for current year if not already loaded
   const currentYear = new Date().getFullYear();
   const holidayCount = await db.execute({
@@ -873,6 +899,173 @@ async function getDueReminders() {
   return result.rows;
 }
 
+// === NOFAP / HABIT TRACKER FUNCTIONS ===
+
+const NOFAP_MOTIVATIONS = [
+  "You are stronger than your urges. This moment will pass.",
+  "Every second you resist makes you stronger.",
+  "Your future self will thank you for this fight.",
+  "Discipline is choosing between what you want NOW and what you want MOST.",
+  "The pain of discipline weighs ounces. The pain of regret weighs tons.",
+  "You didn't come this far to only come this far.",
+  "Control your mind or it will control you.",
+  "A river cuts through rock not because of power but persistence.",
+  "The best time to plant a tree was 20 years ago. The second best is now.",
+  "Fall seven times, stand up eight.",
+  "Your body is a temple, not a playground.",
+  "Real strength is when you hold it together when everyone expects you to fall apart.",
+  "Break the cycle. Build a new pattern. Create the life you deserve.",
+  "You are not your habits. You are the one who can change them.",
+  "10 minutes. Just survive 10 minutes. The urge will fade."
+];
+
+async function getNoFapStreak() {
+  // Find the most recent relapse date
+  const lastRelapse = await db.execute(`
+    SELECT log_date FROM nofap_logs WHERE type = 'relapse'
+    ORDER BY log_date DESC LIMIT 1
+  `);
+
+  let streakStart;
+  if (lastRelapse.rows.length > 0) {
+    // Streak starts the day after last relapse
+    const relapseDate = new Date(lastRelapse.rows[0].log_date);
+    relapseDate.setDate(relapseDate.getDate() + 1);
+    streakStart = relapseDate.toISOString().slice(0, 10);
+  } else {
+    // No relapse ever recorded - find first check-in
+    const firstCheckin = await db.execute(`
+      SELECT log_date FROM nofap_logs WHERE type = 'checkin'
+      ORDER BY log_date ASC LIMIT 1
+    `);
+    if (firstCheckin.rows.length > 0) {
+      streakStart = firstCheckin.rows[0].log_date;
+    } else {
+      return 0;
+    }
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const start = new Date(streakStart);
+  const end = new Date(today);
+  const diffTime = end - start;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays);
+}
+
+async function getNoFapStatus() {
+  const streak = await getNoFapStreak();
+
+  // Total relapses
+  const relapseCount = await db.execute(
+    `SELECT COUNT(*) as count FROM nofap_logs WHERE type = 'relapse'`
+  );
+
+  // Total urges resisted
+  const urgesResisted = await db.execute(
+    `SELECT COUNT(*) as count FROM nofap_urges WHERE resisted = 1`
+  );
+
+  // Total urges total
+  const urgesTotal = await db.execute(
+    `SELECT COUNT(*) as count FROM nofap_urges`
+  );
+
+  // Best streak (longest gap between relapses)
+  const relapses = await db.execute(
+    `SELECT log_date FROM nofap_logs WHERE type = 'relapse' ORDER BY log_date ASC`
+  );
+
+  let bestStreak = streak; // current streak could be the best
+  if (relapses.rows.length > 1) {
+    for (let i = 1; i < relapses.rows.length; i++) {
+      const prev = new Date(relapses.rows[i - 1].log_date);
+      const curr = new Date(relapses.rows[i].log_date);
+      const gap = Math.floor((curr - prev) / (1000 * 60 * 60 * 24)) - 1;
+      if (gap > bestStreak) bestStreak = gap;
+    }
+  }
+
+  // Today's check-in status
+  const today = new Date().toISOString().slice(0, 10);
+  const todayCheckin = await db.execute({
+    sql: `SELECT id FROM nofap_logs WHERE type = 'checkin' AND log_date = ?`,
+    args: [today]
+  });
+
+  return {
+    currentStreak: streak,
+    bestStreak,
+    totalRelapses: Number(relapseCount.rows[0].count),
+    urgesResisted: Number(urgesResisted.rows[0].count),
+    urgesTotal: Number(urgesTotal.rows[0].count),
+    checkedInToday: todayCheckin.rows.length > 0,
+    motivation: NOFAP_MOTIVATIONS[Math.floor(Math.random() * NOFAP_MOTIVATIONS.length)]
+  };
+}
+
+async function logNoFapRelapse(notes) {
+  const now = new Date().toISOString();
+  const today = now.slice(0, 10);
+  const result = await db.execute({
+    sql: `INSERT INTO nofap_logs (type, notes, log_date, created_at) VALUES ('relapse', ?, ?, ?)`,
+    args: [notes || '', today, now]
+  });
+  return { id: Number(result.lastInsertRowid), type: 'relapse', log_date: today, created_at: now };
+}
+
+async function logNoFapCheckin(notes) {
+  const now = new Date().toISOString();
+  const today = now.slice(0, 10);
+
+  // Prevent duplicate check-ins for same day
+  const existing = await db.execute({
+    sql: `SELECT id FROM nofap_logs WHERE type = 'checkin' AND log_date = ?`,
+    args: [today]
+  });
+  if (existing.rows.length > 0) {
+    return { id: Number(existing.rows[0].id), type: 'checkin', log_date: today, already_checked: true };
+  }
+
+  const result = await db.execute({
+    sql: `INSERT INTO nofap_logs (type, notes, log_date, created_at) VALUES ('checkin', ?, ?, ?)`,
+    args: [notes || '', today, now]
+  });
+
+  // Award points for daily check-in (2 points)
+  await awardPoints('nofap_checkin', Number(result.lastInsertRowid), 'nofap', 2, `nofap_checkin_${today}`);
+  await awardDailyStreakBonus();
+
+  return { id: Number(result.lastInsertRowid), type: 'checkin', log_date: today, created_at: now };
+}
+
+async function logNoFapUrge(intensity, resisted, durationSeconds, notes) {
+  const now = new Date().toISOString();
+  const result = await db.execute({
+    sql: `INSERT INTO nofap_urges (intensity, resisted, duration_seconds, notes, created_at) VALUES (?, ?, ?, ?, ?)`,
+    args: [intensity || 5, resisted ? 1 : 0, durationSeconds || null, notes || '', now]
+  });
+
+  // Award points for resisting urge (5 points)
+  if (resisted) {
+    await awardPoints('nofap_urge_resisted', Number(result.lastInsertRowid), 'nofap', 5, `nofap_urge_${result.lastInsertRowid}`);
+  }
+
+  return { id: Number(result.lastInsertRowid), intensity, resisted, duration_seconds: durationSeconds, created_at: now };
+}
+
+async function getNoFapHistory(days = 30) {
+  const logs = await db.execute({
+    sql: `SELECT * FROM nofap_logs WHERE date(created_at) >= date('now', ?) ORDER BY created_at DESC`,
+    args: [`-${days} days`]
+  });
+  const urges = await db.execute({
+    sql: `SELECT * FROM nofap_urges WHERE date(created_at) >= date('now', ?) ORDER BY created_at DESC`,
+    args: [`-${days} days`]
+  });
+  return { logs: logs.rows, urges: urges.rows };
+}
+
 module.exports = {
   init,
   getTasks,
@@ -913,6 +1106,13 @@ module.exports = {
   updateReminder,
   deleteReminder,
   getDueReminders,
+  getNoFapStatus,
+  getNoFapStreak,
+  logNoFapRelapse,
+  logNoFapCheckin,
+  logNoFapUrge,
+  getNoFapHistory,
+  NOFAP_MOTIVATIONS,
   EXERCISE_TYPES,
   PLANT_LEVELS,
   CATEGORIES,

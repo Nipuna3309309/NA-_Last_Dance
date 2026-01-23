@@ -155,7 +155,13 @@ const state = {
   calendarYear: new Date().getFullYear(),
   calendarMonth: new Date().getMonth() + 1,
   calendarData: null,
-  plantStatus: null
+  plantStatus: null,
+  // NoFap module states
+  nofapStatus: null,
+  nofapHistory: null,
+  urgeTimerInterval: null,
+  urgeTimerSeconds: 600,
+  urgeTimerRunning: false
 };
 
 // DOM Elements
@@ -236,6 +242,27 @@ const closeHistory = document.getElementById('closeHistory');
 const physicalStreakEl = document.getElementById('physicalStreak');
 const physicalWeekEl = document.getElementById('physicalWeek');
 const physicalMonthEl = document.getElementById('physicalMonth');
+
+// NoFap module elements
+const nofapContainer = document.getElementById('nofapContainer');
+const nofapStreakNumber = document.getElementById('nofapStreakNumber');
+const nofapBestStreak = document.getElementById('nofapBestStreak');
+const nofapUrgesResisted = document.getElementById('nofapUrgesResisted');
+const nofapTotalRelapses = document.getElementById('nofapTotalRelapses');
+const nofapCheckinStatus = document.getElementById('nofapCheckinStatus');
+const nofapMotivation = document.getElementById('nofapMotivation');
+const nofapCheckinBtn = document.getElementById('nofapCheckinBtn');
+const nofapUrgeBtn = document.getElementById('nofapUrgeBtn');
+const nofapRelapseBtn = document.getElementById('nofapRelapseBtn');
+const nofapUrgeTimer = document.getElementById('nofapUrgeTimer');
+const urgeTimerProgress = document.getElementById('urgeTimerProgress');
+const urgeTimerText = document.getElementById('urgeTimerText');
+const urgeTimerMotivation = document.getElementById('urgeTimerMotivation');
+const urgeIntensitySlider = document.getElementById('urgeIntensitySlider');
+const urgeIntensityValue = document.getElementById('urgeIntensityValue');
+const urgeTimerDoneBtn = document.getElementById('urgeTimerDoneBtn');
+const urgeTimerCancelBtn = document.getElementById('urgeTimerCancelBtn');
+const nofapHistoryList = document.getElementById('nofapHistoryList');
 
 // ============ CONFETTI ============
 class Confetti {
@@ -1322,6 +1349,7 @@ function switchModule(module) {
   calendarContainer.classList.add('hidden');
   physicalContainer.classList.add('hidden');
   plantContainer.classList.add('hidden');
+  if (nofapContainer) nofapContainer.classList.add('hidden');
   if (galaxyContainer) galaxyContainer.classList.add('hidden');
 
   // Hide task-specific UI when on other modules
@@ -1352,6 +1380,9 @@ function switchModule(module) {
     } else if (module === 'plant') {
       plantContainer.classList.remove('hidden');
       loadPlantStatus();
+    } else if (module === 'nofap') {
+      nofapContainer.classList.remove('hidden');
+      loadNoFapStatus();
     }
     // Galaxy is handled by the override at the bottom of the file
   }
@@ -2053,6 +2084,334 @@ async function initPWA() {
 
 // Start PWA initialization
 initPWA();
+
+// ============ NOFAP / ACCOUNTABILITY MODULE ============
+
+const URGE_TIMER_DURATION = 600; // 10 minutes in seconds
+const URGE_CIRCLE_CIRCUMFERENCE = 2 * Math.PI * 54; // radius 54 from SVG
+
+const urgeMotivations = [
+  "You are stronger than your urges. This moment will pass.",
+  "Every second you resist makes you stronger.",
+  "Your future self will thank you for this fight.",
+  "Discipline is choosing between what you want NOW and what you want MOST.",
+  "The pain of discipline weighs ounces. The pain of regret weighs tons.",
+  "You didn't come this far to only come this far.",
+  "Control your mind or it will control you.",
+  "A river cuts through rock not because of power but persistence.",
+  "Fall seven times, stand up eight.",
+  "Real strength is when you hold it together when everyone expects you to fall apart.",
+  "Break the cycle. Build a new pattern.",
+  "You are not your habits. You are the one who can change them.",
+  "10 minutes. Just survive 10 minutes. The urge will fade.",
+  "Think about why you started this journey.",
+  "Every urge resisted is a victory won."
+];
+
+async function loadNoFapStatus() {
+  try {
+    const response = await fetch('/api/nofap/status');
+    const data = await response.json();
+    state.nofapStatus = data;
+    renderNoFapStatus();
+    loadNoFapHistory();
+  } catch (error) {
+    console.error('Failed to load accountability status:', error);
+    showToast('Failed to load status', 'error');
+  }
+}
+
+function renderNoFapStatus() {
+  const s = state.nofapStatus;
+  if (!s) return;
+
+  if (nofapStreakNumber) nofapStreakNumber.textContent = s.currentStreak;
+  if (nofapBestStreak) nofapBestStreak.textContent = s.bestStreak;
+  if (nofapUrgesResisted) nofapUrgesResisted.textContent = s.urgesResisted;
+  if (nofapTotalRelapses) nofapTotalRelapses.textContent = s.totalRelapses;
+  if (nofapMotivation) nofapMotivation.textContent = s.motivation;
+
+  if (nofapCheckinStatus) {
+    nofapCheckinStatus.textContent = s.checkedInToday ? 'Done' : 'Pending';
+    nofapCheckinStatus.className = 'nofap-stat-value ' + (s.checkedInToday ? 'checkin-done' : 'checkin-pending');
+  }
+
+  if (nofapCheckinBtn) {
+    if (s.checkedInToday) {
+      nofapCheckinBtn.textContent = 'Checked In Today';
+      nofapCheckinBtn.disabled = true;
+      nofapCheckinBtn.classList.add('btn-disabled');
+    } else {
+      nofapCheckinBtn.textContent = 'Daily Check-in';
+      nofapCheckinBtn.disabled = false;
+      nofapCheckinBtn.classList.remove('btn-disabled');
+    }
+  }
+
+  // Animate streak number
+  if (nofapStreakNumber && s.currentStreak > 0) {
+    nofapStreakNumber.classList.add('streak-glow');
+  }
+}
+
+async function loadNoFapHistory() {
+  try {
+    const response = await fetch('/api/nofap/history?days=30');
+    const data = await response.json();
+    state.nofapHistory = data;
+    renderNoFapHistory();
+  } catch (error) {
+    console.error('Failed to load history:', error);
+  }
+}
+
+function renderNoFapHistory() {
+  if (!nofapHistoryList || !state.nofapHistory) return;
+
+  const { logs, urges } = state.nofapHistory;
+
+  // Combine and sort by date
+  const events = [];
+  for (const log of logs) {
+    events.push({
+      type: log.type,
+      date: log.created_at,
+      notes: log.notes,
+      icon: log.type === 'relapse' ? '&#10060;' : '&#9989;',
+      label: log.type === 'relapse' ? 'Relapse' : 'Check-in'
+    });
+  }
+  for (const urge of urges) {
+    events.push({
+      type: 'urge',
+      date: urge.created_at,
+      notes: urge.notes,
+      intensity: urge.intensity,
+      resisted: urge.resisted,
+      icon: urge.resisted ? '&#128170;' : '&#9888;',
+      label: urge.resisted ? `Urge Resisted (${urge.intensity}/10)` : `Urge (${urge.intensity}/10)`
+    });
+  }
+
+  events.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  if (events.length === 0) {
+    nofapHistoryList.innerHTML = '<p class="empty-history">No activity yet. Start your journey with a daily check-in!</p>';
+    return;
+  }
+
+  nofapHistoryList.innerHTML = events.slice(0, 20).map(event => {
+    const date = new Date(event.date);
+    const timeStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+      ' ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const typeClass = event.type === 'relapse' ? 'history-relapse' : event.type === 'urge' ? 'history-urge' : 'history-checkin';
+    return `
+      <div class="nofap-history-item ${typeClass}">
+        <span class="history-icon">${event.icon}</span>
+        <div class="history-details">
+          <span class="history-label">${event.label}</span>
+          ${event.notes ? `<span class="history-notes">${event.notes}</span>` : ''}
+        </div>
+        <span class="history-time">${timeStr}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function doNoFapCheckin() {
+  try {
+    const response = await fetch('/api/nofap/checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: '' })
+    });
+    const data = await response.json();
+    if (data.already_checked) {
+      showToast('Already checked in today!', 'info');
+    } else {
+      showToast('Check-in complete! +2 points', 'success');
+      if (confetti) confetti.fire();
+    }
+    state.nofapStatus = data.status;
+    renderNoFapStatus();
+    loadNoFapHistory();
+  } catch (error) {
+    console.error('Check-in failed:', error);
+    showToast('Check-in failed', 'error');
+  }
+}
+
+async function doNoFapRelapse() {
+  if (!confirm('Are you sure you want to log a relapse? Your streak will reset. Remember: falling is not failing. Getting back up is what matters.')) {
+    return;
+  }
+  try {
+    const response = await fetch('/api/nofap/relapse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: '' })
+    });
+    const data = await response.json();
+    showToast('Logged. Your streak resets but YOU don\'t. Get back up.', 'info');
+    state.nofapStatus = data.status;
+    renderNoFapStatus();
+    loadNoFapHistory();
+  } catch (error) {
+    console.error('Failed to log:', error);
+    showToast('Failed to log', 'error');
+  }
+}
+
+function startUrgeTimer() {
+  if (state.urgeTimerRunning) return;
+
+  state.urgeTimerSeconds = URGE_TIMER_DURATION;
+  state.urgeTimerRunning = true;
+  nofapUrgeTimer.classList.remove('hidden');
+
+  // Set initial circle state
+  if (urgeTimerProgress) {
+    urgeTimerProgress.style.strokeDasharray = URGE_CIRCLE_CIRCUMFERENCE;
+    urgeTimerProgress.style.strokeDashoffset = '0';
+  }
+
+  updateUrgeTimerDisplay();
+  rotateUrgeMotivation();
+
+  state.urgeTimerInterval = setInterval(() => {
+    state.urgeTimerSeconds--;
+    updateUrgeTimerDisplay();
+
+    // Rotate motivation every 30 seconds
+    if (state.urgeTimerSeconds % 30 === 0) {
+      rotateUrgeMotivation();
+    }
+
+    if (state.urgeTimerSeconds <= 0) {
+      endUrgeTimer(true);
+    }
+  }, 1000);
+
+  // Also trigger a notification
+  showNotification('Stay Strong!', {
+    body: 'You started the urge timer. Hold on for 10 minutes!',
+    tag: 'urge-timer-start'
+  });
+}
+
+function updateUrgeTimerDisplay() {
+  const mins = Math.floor(state.urgeTimerSeconds / 60);
+  const secs = state.urgeTimerSeconds % 60;
+  if (urgeTimerText) {
+    urgeTimerText.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  // Update circle progress
+  if (urgeTimerProgress) {
+    const progress = 1 - (state.urgeTimerSeconds / URGE_TIMER_DURATION);
+    const offset = URGE_CIRCLE_CIRCUMFERENCE * (1 - progress);
+    urgeTimerProgress.style.strokeDashoffset = offset;
+  }
+}
+
+function rotateUrgeMotivation() {
+  if (urgeTimerMotivation) {
+    const msg = urgeMotivations[Math.floor(Math.random() * urgeMotivations.length)];
+    urgeTimerMotivation.textContent = msg;
+    urgeTimerMotivation.classList.add('motivation-fade');
+    setTimeout(() => urgeTimerMotivation.classList.remove('motivation-fade'), 500);
+  }
+}
+
+async function endUrgeTimer(resisted) {
+  clearInterval(state.urgeTimerInterval);
+  state.urgeTimerRunning = false;
+
+  const elapsed = URGE_TIMER_DURATION - state.urgeTimerSeconds;
+  const intensity = urgeIntensitySlider ? parseInt(urgeIntensitySlider.value, 10) : 5;
+
+  nofapUrgeTimer.classList.add('hidden');
+
+  try {
+    await fetch('/api/nofap/urge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        intensity,
+        resisted,
+        duration_seconds: elapsed,
+        notes: resisted ? 'Urge resisted via timer' : 'Timer cancelled'
+      })
+    });
+
+    if (resisted) {
+      showToast('You resisted! +5 points. You\'re a warrior!', 'success');
+      if (confetti) confetti.fire();
+      showNotification('Urge Defeated!', {
+        body: `You resisted an urge of intensity ${intensity}/10! Stay strong!`,
+        tag: 'urge-resisted'
+      });
+    } else {
+      showToast('Timer cancelled. Stay aware of your triggers.', 'info');
+    }
+
+    loadNoFapStatus();
+  } catch (error) {
+    console.error('Failed to log urge:', error);
+  }
+}
+
+// Wire nofap events
+function wireNoFapEvents() {
+  if (nofapCheckinBtn) {
+    nofapCheckinBtn.addEventListener('click', doNoFapCheckin);
+  }
+  if (nofapUrgeBtn) {
+    nofapUrgeBtn.addEventListener('click', startUrgeTimer);
+  }
+  if (nofapRelapseBtn) {
+    nofapRelapseBtn.addEventListener('click', doNoFapRelapse);
+  }
+  if (urgeTimerDoneBtn) {
+    urgeTimerDoneBtn.addEventListener('click', () => endUrgeTimer(true));
+  }
+  if (urgeTimerCancelBtn) {
+    urgeTimerCancelBtn.addEventListener('click', () => endUrgeTimer(false));
+  }
+  if (urgeIntensitySlider) {
+    urgeIntensitySlider.addEventListener('input', () => {
+      if (urgeIntensityValue) urgeIntensityValue.textContent = urgeIntensitySlider.value;
+    });
+  }
+}
+
+// Schedule daily check-in reminder notification
+function scheduleNoFapReminder() {
+  // Check every hour if user hasn't checked in today
+  setInterval(async () => {
+    if (state.activeModule !== 'nofap' && Notification.permission === 'granted') {
+      try {
+        const response = await fetch('/api/nofap/status');
+        const status = await response.json();
+        if (!status.checkedInToday) {
+          const hour = new Date().getHours();
+          // Remind at 9 AM, 2 PM, and 8 PM
+          if (hour === 9 || hour === 14 || hour === 20) {
+            showNotification('Daily Check-in Reminder', {
+              body: `Day ${status.currentStreak + 1} awaits! Check in to keep your streak going.`,
+              tag: 'nofap-checkin-reminder'
+            });
+          }
+        }
+      } catch (e) {
+        // silently fail
+      }
+    }
+  }, 3600000); // every hour
+}
+
+wireNoFapEvents();
+scheduleNoFapReminder();
 
 // ============ GALAXY MODULE ============
 

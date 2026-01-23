@@ -2327,3 +2327,374 @@ select option {
     justify-content: center;
   }
 }
+
+/* ============ NOFAP / ACCOUNTABILITY MODULE ============ */
+
+.nofap-wrapper {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.nofap-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.nofap-header h2 {
+  font-size: 1.6rem;
+  color: #e2e8f0;
+  margin-bottom: 0.5rem;
+}
+
+.nofap-icon {
+  margin-right: 0.5rem;
+}
+
+.nofap-subtitle {
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 0.9rem;
+  min-height: 1.2em;
+}
+
+.nofap-streak-display {
+  text-align: center;
+  padding: 2rem 1rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.15));
+  border-radius: 16px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  margin-bottom: 1.5rem;
+}
+
+.nofap-streak-number {
+  font-size: 4rem;
+  font-weight: 700;
+  color: #a78bfa;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+  transition: all 0.3s ease;
+}
+
+.nofap-streak-number.streak-glow {
+  text-shadow: 0 0 20px rgba(167, 139, 250, 0.5), 0 0 40px rgba(167, 139, 250, 0.3);
+}
+
+.nofap-streak-label {
+  font-size: 1.1rem;
+  color: #cbd5e1;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.nofap-best-streak {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.nofap-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.nofap-stat {
+  text-align: center;
+  padding: 1rem;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 12px;
+  border: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+.nofap-stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.nofap-stat-value.checkin-done {
+  color: #4ade80;
+}
+
+.nofap-stat-value.checkin-pending {
+  color: #fbbf24;
+}
+
+.nofap-stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.nofap-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.nofap-btn {
+  padding: 0.875rem 1.5rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  text-align: center;
+}
+
+.nofap-btn.btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nofap-urge-btn {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.nofap-urge-btn:hover {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  transform: translateY(-1px);
+}
+
+.nofap-relapse-btn {
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: transparent;
+}
+
+.nofap-relapse-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Urge Timer */
+.nofap-urge-timer {
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  text-align: center;
+  animation: timer-appear 0.3s ease-out;
+}
+
+@keyframes timer-appear {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.urge-timer-header h3 {
+  color: #f59e0b;
+  font-size: 1.3rem;
+  margin-bottom: 0.25rem;
+}
+
+.urge-timer-header p {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.urge-timer-display {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  margin: 1.5rem auto;
+}
+
+.urge-timer-circle {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.urge-timer-bg {
+  fill: none;
+  stroke: rgba(51, 65, 85, 0.5);
+  stroke-width: 8;
+}
+
+.urge-timer-progress {
+  fill: none;
+  stroke: #a78bfa;
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.urge-timer-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+}
+
+.urge-timer-motivation {
+  color: #a78bfa;
+  font-style: italic;
+  font-size: 0.9rem;
+  min-height: 2.5em;
+  margin: 1rem 0;
+  transition: opacity 0.3s ease;
+}
+
+.urge-timer-motivation.motivation-fade {
+  animation: fade-in-out 0.5s ease;
+}
+
+@keyframes fade-in-out {
+  0% { opacity: 0; transform: translateY(5px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.urge-intensity {
+  margin: 1rem 0;
+}
+
+.urge-intensity label {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.urge-intensity input[type="range"] {
+  width: 100%;
+  max-width: 250px;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(90deg, #4ade80, #fbbf24, #ef4444);
+  border-radius: 3px;
+  outline: none;
+}
+
+.urge-intensity input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  cursor: pointer;
+  border: 2px solid #6366f1;
+}
+
+.urge-timer-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+/* History */
+.nofap-history {
+  margin-top: 1.5rem;
+}
+
+.nofap-history h3 {
+  color: #e2e8f0;
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.nofap-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nofap-history-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(51, 65, 85, 0.4);
+}
+
+.nofap-history-item.history-checkin {
+  border-left: 3px solid #4ade80;
+}
+
+.nofap-history-item.history-urge {
+  border-left: 3px solid #f59e0b;
+}
+
+.nofap-history-item.history-relapse {
+  border-left: 3px solid #ef4444;
+}
+
+.history-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.history-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-label {
+  display: block;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.history-notes {
+  display: block;
+  color: #64748b;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-time {
+  color: #64748b;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.empty-history {
+  text-align: center;
+  color: #64748b;
+  font-style: italic;
+  padding: 2rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .nofap-wrapper {
+    padding: 1rem;
+  }
+
+  .nofap-streak-number {
+    font-size: 3rem;
+  }
+
+  .nofap-stats {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  .nofap-stat {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .urge-timer-actions {
+    flex-direction: column;
+  }
+}

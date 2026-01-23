@@ -44,6 +44,9 @@
           <button class="nav-item module-nav" data-module="plant">
             <span class="nav-icon">&#127793;</span> Plant
           </button>
+          <button class="nav-item module-nav" data-module="nofap">
+            <span class="nav-icon">&#128170;</span> Accountability
+          </button>
           <button class="nav-item module-nav" data-module="galaxy">
             <span class="nav-icon">&#127756;</span> Galaxy
           </button>
@@ -248,6 +251,73 @@
                 <span id="starCount">Stars: 0</span>
                 <span id="fpsCount">FPS: 0</span>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- NoFap/Accountability Module -->
+        <section id="nofapContainer" class="view-container hidden">
+          <div class="nofap-wrapper">
+            <div class="nofap-header">
+              <h2><span class="nofap-icon">&#128170;</span> Accountability Tracker</h2>
+              <p class="nofap-subtitle" id="nofapMotivation">Stay strong. You got this.</p>
+            </div>
+
+            <div class="nofap-streak-display">
+              <div class="nofap-streak-number" id="nofapStreakNumber">0</div>
+              <div class="nofap-streak-label">Days Clean</div>
+              <div class="nofap-best-streak">Best: <span id="nofapBestStreak">0</span> days</div>
+            </div>
+
+            <div class="nofap-stats">
+              <div class="nofap-stat">
+                <span id="nofapUrgesResisted" class="nofap-stat-value">0</span>
+                <span class="nofap-stat-label">Urges Resisted</span>
+              </div>
+              <div class="nofap-stat">
+                <span id="nofapTotalRelapses" class="nofap-stat-value">0</span>
+                <span class="nofap-stat-label">Total Relapses</span>
+              </div>
+              <div class="nofap-stat">
+                <span id="nofapCheckinStatus" class="nofap-stat-value">--</span>
+                <span class="nofap-stat-label">Today</span>
+              </div>
+            </div>
+
+            <div class="nofap-actions">
+              <button id="nofapCheckinBtn" class="primary nofap-btn">Daily Check-in</button>
+              <button id="nofapUrgeBtn" class="nofap-btn nofap-urge-btn">I'm Having an Urge</button>
+              <button id="nofapRelapseBtn" class="ghost nofap-btn nofap-relapse-btn">Log Relapse</button>
+            </div>
+
+            <!-- Urge Timer Section (hidden by default) -->
+            <div id="nofapUrgeTimer" class="nofap-urge-timer hidden">
+              <div class="urge-timer-header">
+                <h3>Ride the Wave</h3>
+                <p>The urge will pass. Hold on for 10 minutes.</p>
+              </div>
+              <div class="urge-timer-display">
+                <svg class="urge-timer-circle" viewBox="0 0 120 120">
+                  <circle class="urge-timer-bg" cx="60" cy="60" r="54"/>
+                  <circle class="urge-timer-progress" id="urgeTimerProgress" cx="60" cy="60" r="54"/>
+                </svg>
+                <div class="urge-timer-text" id="urgeTimerText">10:00</div>
+              </div>
+              <div class="urge-timer-motivation" id="urgeTimerMotivation">You are stronger than this.</div>
+              <div class="urge-intensity">
+                <label>Intensity: <span id="urgeIntensityValue">5</span>/10</label>
+                <input type="range" id="urgeIntensitySlider" min="1" max="10" value="5" />
+              </div>
+              <div class="urge-timer-actions">
+                <button id="urgeTimerDoneBtn" class="primary nofap-btn">I Resisted!</button>
+                <button id="urgeTimerCancelBtn" class="ghost nofap-btn">Cancel</button>
+              </div>
+            </div>
+
+            <!-- History Section -->
+            <div class="nofap-history">
+              <h3>Recent Activity</h3>
+              <div id="nofapHistoryList" class="nofap-history-list"></div>
             </div>
           </div>
         </section>

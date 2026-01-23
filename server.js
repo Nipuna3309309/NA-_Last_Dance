@@ -669,6 +669,77 @@ app.delete('/api/reminders/:id', async (req, res) => {
   }
 });
 
+// === NOFAP / HABIT TRACKER API ===
+
+// Get current status (streak, stats, motivation)
+app.get('/api/nofap/status', async (req, res) => {
+  try {
+    const status = await db.getNoFapStatus();
+    res.json(status);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load status' });
+  }
+});
+
+// Daily check-in
+app.post('/api/nofap/checkin', async (req, res) => {
+  try {
+    const result = await db.logNoFapCheckin(req.body.notes || '');
+    const status = await db.getNoFapStatus();
+    res.status(201).json({ ...result, status });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to check in' });
+  }
+});
+
+// Log a relapse
+app.post('/api/nofap/relapse', async (req, res) => {
+  try {
+    const result = await db.logNoFapRelapse(req.body.notes || '');
+    const status = await db.getNoFapStatus();
+    res.status(201).json({ ...result, status });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to log' });
+  }
+});
+
+// Log an urge (resisted or not)
+app.post('/api/nofap/urge', async (req, res) => {
+  const body = req.body || {};
+  const intensity = Math.min(10, Math.max(1, parseInt(body.intensity, 10) || 5));
+  const resisted = body.resisted !== false;
+  const durationSeconds = parseInt(body.duration_seconds, 10) || null;
+
+  try {
+    const result = await db.logNoFapUrge(intensity, resisted, durationSeconds, body.notes || '');
+    res.status(201).json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to log urge' });
+  }
+});
+
+// Get history
+app.get('/api/nofap/history', async (req, res) => {
+  const days = Math.min(parseInt(req.query.days, 10) || 30, 365);
+  try {
+    const history = await db.getNoFapHistory(days);
+    res.json(history);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load history' });
+  }
+});
+
+// Get a random motivation quote
+app.get('/api/nofap/motivation', (req, res) => {
+  const quotes = db.NOFAP_MOTIVATIONS;
+  res.json({ motivation: quotes[Math.floor(Math.random() * quotes.length)] });
+});
+
 // For local development
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
