@@ -259,107 +259,152 @@
         <!-- NoFap/Accountability Module -->
         <section id="nofapContainer" class="view-container hidden">
           <div class="nofap-wrapper">
-            <div class="nofap-header">
-              <h2><span class="nofap-icon">&#128170;</span> Accountability Tracker</h2>
-              <p class="nofap-subtitle" id="nofapMotivation">Stay strong. You got this.</p>
-            </div>
 
-            <div class="nofap-streak-display">
-              <div class="nofap-streak-number" id="nofapStreakNumber">0</div>
-              <div class="nofap-streak-label">Days Clean</div>
-              <div class="nofap-best-streak">Best: <span id="nofapBestStreak">0</span> days</div>
-            </div>
-
-            <div class="nofap-stats">
-              <div class="nofap-stat">
-                <span id="nofapUrgesResisted" class="nofap-stat-value">0</span>
-                <span class="nofap-stat-label">Urges Resisted</span>
-              </div>
-              <div class="nofap-stat">
-                <span id="nofapTotalRelapses" class="nofap-stat-value">0</span>
-                <span class="nofap-stat-label">Total Relapses</span>
-              </div>
-              <div class="nofap-stat">
-                <span id="nofapCheckinStatus" class="nofap-stat-value">--</span>
-                <span class="nofap-stat-label">Today</span>
-              </div>
-            </div>
-
-            <div class="nofap-actions">
-              <button id="nofapCheckinBtn" class="primary nofap-btn">Daily Check-in</button>
-              <button id="nofapUrgeBtn" class="nofap-btn nofap-urge-btn">I'm Having an Urge</button>
-              <button id="nofapRelapseBtn" class="ghost nofap-btn nofap-relapse-btn">Log Relapse</button>
-            </div>
-
-            <!-- Urge Timer Section (hidden by default) -->
-            <div id="nofapUrgeTimer" class="nofap-urge-timer hidden">
-              <div class="urge-timer-header">
-                <h3>Ride the Wave</h3>
-                <p>The urge will pass. Hold on for 10 minutes.</p>
-              </div>
-              <div class="urge-timer-display">
-                <svg class="urge-timer-circle" viewBox="0 0 120 120">
-                  <circle class="urge-timer-bg" cx="60" cy="60" r="54"/>
-                  <circle class="urge-timer-progress" id="urgeTimerProgress" cx="60" cy="60" r="54"/>
-                </svg>
-                <div class="urge-timer-text" id="urgeTimerText">10:00</div>
-              </div>
-              <div class="urge-timer-motivation" id="urgeTimerMotivation">You are stronger than this.</div>
-              <div class="urge-intensity">
-                <label>Intensity: <span id="urgeIntensityValue">5</span>/10</label>
-                <input type="range" id="urgeIntensitySlider" min="1" max="10" value="5" />
-              </div>
-              <div class="urge-timer-actions">
-                <button id="urgeTimerDoneBtn" class="primary nofap-btn">I Resisted!</button>
-                <button id="urgeTimerCancelBtn" class="ghost nofap-btn">Cancel</button>
-              </div>
-            </div>
-
-            <!-- Daily Journal Section -->
-            <div class="diary-section">
-              <div class="diary-header">
-                <h3>Daily Journal</h3>
-                <span id="diaryDate" class="diary-date"></span>
-              </div>
-              <form id="diaryForm" class="diary-form">
-                <div class="diary-mood">
-                  <label>How are you feeling? <span id="diaryMoodValue">5</span>/10</label>
-                  <input type="range" id="diaryMoodSlider" min="1" max="10" value="5" />
-                  <div class="mood-labels">
-                    <span>Terrible</span>
-                    <span>Great</span>
+            <!-- Hero: Streak + Motivation (always visible) -->
+            <div class="nf-hero">
+              <div class="nf-hero-left">
+                <div class="nf-streak-ring">
+                  <svg viewBox="0 0 120 120" class="nf-ring-svg">
+                    <circle cx="60" cy="60" r="52" class="nf-ring-bg"/>
+                    <circle cx="60" cy="60" r="52" class="nf-ring-fill" id="nfStreakRing"/>
+                  </svg>
+                  <div class="nf-streak-inner">
+                    <span class="nf-streak-num" id="nofapStreakNumber">0</span>
+                    <span class="nf-streak-unit">days</span>
                   </div>
                 </div>
-                <label class="diary-label">
-                  How do you feel right now?
-                  <textarea id="diaryFeeling" rows="2" placeholder="Describe your current emotional state..."></textarea>
-                </label>
-                <label class="diary-label">
-                  What triggered you today?
-                  <textarea id="diaryTriggers" rows="2" placeholder="Any urges, situations, or environments that were challenging..."></textarea>
-                </label>
-                <label class="diary-label">
-                  What helped you stay strong?
-                  <textarea id="diaryWhatHelped" rows="2" placeholder="Strategies, activities, or people that helped..."></textarea>
-                </label>
-                <label class="diary-label">
-                  What are you grateful for?
-                  <textarea id="diaryGrateful" rows="2" placeholder="List things you're thankful for today..."></textarea>
-                </label>
-                <label class="diary-label">
-                  Free journal
-                  <textarea id="diaryJournal" rows="4" placeholder="Write anything else on your mind..."></textarea>
-                </label>
-                <button type="submit" class="primary nofap-btn" id="diarySaveBtn">Save Journal Entry</button>
-              </form>
+                <div class="nf-streak-meta">
+                  <span class="nf-best">Best: <strong id="nofapBestStreak">0</strong> days</span>
+                </div>
+              </div>
+              <div class="nf-hero-right">
+                <h2 class="nf-title">Stay Accountable</h2>
+                <p class="nf-motivation" id="nofapMotivation">Stay strong. You got this.</p>
+                <div class="nf-quick-stats">
+                  <div class="nf-qs"><span id="nofapUrgesResisted" class="nf-qs-val">0</span><span class="nf-qs-label">Resisted</span></div>
+                  <div class="nf-qs"><span id="nofapTotalRelapses" class="nf-qs-val">0</span><span class="nf-qs-label">Relapses</span></div>
+                  <div class="nf-qs"><span id="nofapCheckinStatus" class="nf-qs-val checkin-pending">--</span><span class="nf-qs-label">Today</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="nf-tabs">
+              <button class="nf-tab active" data-nftab="dashboard">Dashboard</button>
+              <button class="nf-tab" data-nftab="journal">Journal</button>
+              <button class="nf-tab" data-nftab="history">History</button>
+            </div>
+
+            <!-- Tab: Dashboard -->
+            <div class="nf-tab-panel active" id="nfPanelDashboard" data-nfpanel="dashboard">
+              <div class="nf-actions-grid">
+                <button id="nofapCheckinBtn" class="nf-action-card nf-action-checkin">
+                  <span class="nf-action-icon">&#9989;</span>
+                  <span class="nf-action-title">Daily Check-in</span>
+                  <span class="nf-action-desc">Confirm you stayed clean today</span>
+                </button>
+                <button id="nofapUrgeBtn" class="nf-action-card nf-action-urge">
+                  <span class="nf-action-icon">&#9888;&#65039;</span>
+                  <span class="nf-action-title">I Have an Urge</span>
+                  <span class="nf-action-desc">Start 10-min timer to ride it out</span>
+                </button>
+                <button id="nofapRelapseBtn" class="nf-action-card nf-action-relapse">
+                  <span class="nf-action-icon">&#128260;</span>
+                  <span class="nf-action-title">Log Relapse</span>
+                  <span class="nf-action-desc">Reset streak & start fresh</span>
+                </button>
+              </div>
+
+              <!-- Urge Timer (hidden by default) -->
+              <div id="nofapUrgeTimer" class="nofap-urge-timer hidden">
+                <div class="urge-timer-header">
+                  <h3>Ride the Wave</h3>
+                  <p>The urge will pass. Hold on for 10 minutes.</p>
+                </div>
+                <div class="urge-timer-display">
+                  <svg class="urge-timer-circle" viewBox="0 0 120 120">
+                    <circle class="urge-timer-bg" cx="60" cy="60" r="54"/>
+                    <circle class="urge-timer-progress" id="urgeTimerProgress" cx="60" cy="60" r="54"/>
+                  </svg>
+                  <div class="urge-timer-text" id="urgeTimerText">10:00</div>
+                </div>
+                <div class="urge-timer-motivation" id="urgeTimerMotivation">You are stronger than this.</div>
+                <div class="urge-intensity">
+                  <label>Intensity: <span id="urgeIntensityValue">5</span>/10</label>
+                  <input type="range" id="urgeIntensitySlider" min="1" max="10" value="5" />
+                </div>
+                <div class="urge-timer-actions">
+                  <button id="urgeTimerDoneBtn" class="primary nofap-btn">I Resisted!</button>
+                  <button id="urgeTimerCancelBtn" class="ghost nofap-btn">Cancel</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab: Journal -->
+            <div class="nf-tab-panel" id="nfPanelJournal" data-nfpanel="journal">
+              <div class="diary-section">
+                <div class="diary-header">
+                  <span id="diaryDate" class="diary-date"></span>
+                </div>
+                <form id="diaryForm" class="diary-form">
+                  <div class="diary-mood">
+                    <label>How are you feeling? <span id="diaryMoodValue">5</span>/10</label>
+                    <input type="range" id="diaryMoodSlider" min="1" max="10" value="5" />
+                    <div class="mood-labels">
+                      <span>Terrible</span>
+                      <span>Great</span>
+                    </div>
+                  </div>
+                  <div class="diary-questions">
+                    <div class="diary-card">
+                      <span class="diary-card-icon">&#128172;</span>
+                      <label class="diary-label">
+                        How do you feel right now?
+                        <textarea id="diaryFeeling" rows="2" placeholder="Describe your current emotional state..."></textarea>
+                      </label>
+                    </div>
+                    <div class="diary-card">
+                      <span class="diary-card-icon">&#9889;</span>
+                      <label class="diary-label">
+                        What triggered you today?
+                        <textarea id="diaryTriggers" rows="2" placeholder="Any urges, situations, or environments that were challenging..."></textarea>
+                      </label>
+                    </div>
+                    <div class="diary-card">
+                      <span class="diary-card-icon">&#128737;</span>
+                      <label class="diary-label">
+                        What helped you stay strong?
+                        <textarea id="diaryWhatHelped" rows="2" placeholder="Strategies, activities, or people that helped..."></textarea>
+                      </label>
+                    </div>
+                    <div class="diary-card">
+                      <span class="diary-card-icon">&#128154;</span>
+                      <label class="diary-label">
+                        What are you grateful for?
+                        <textarea id="diaryGrateful" rows="2" placeholder="List things you're thankful for today..."></textarea>
+                      </label>
+                    </div>
+                    <div class="diary-card diary-card-full">
+                      <span class="diary-card-icon">&#128221;</span>
+                      <label class="diary-label">
+                        Free journal
+                        <textarea id="diaryJournal" rows="4" placeholder="Write anything else on your mind..."></textarea>
+                      </label>
+                    </div>
+                  </div>
+                  <button type="submit" class="primary nofap-btn diary-save-btn" id="diarySaveBtn">Save Journal Entry</button>
+                </form>
+              </div>
               <div id="diaryPastEntries" class="diary-past-entries"></div>
             </div>
 
-            <!-- History Section -->
-            <div class="nofap-history">
-              <h3>Recent Activity</h3>
-              <div id="nofapHistoryList" class="nofap-history-list"></div>
+            <!-- Tab: History -->
+            <div class="nf-tab-panel" id="nfPanelHistory" data-nfpanel="history">
+              <div class="nofap-history">
+                <div id="nofapHistoryList" class="nofap-history-list"></div>
+              </div>
             </div>
+
           </div>
         </section>
       </main>

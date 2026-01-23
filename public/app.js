@@ -2133,16 +2133,20 @@ function renderNoFapStatus() {
 
   if (nofapCheckinStatus) {
     nofapCheckinStatus.textContent = s.checkedInToday ? 'Done' : 'Pending';
-    nofapCheckinStatus.className = 'nofap-stat-value ' + (s.checkedInToday ? 'checkin-done' : 'checkin-pending');
+    nofapCheckinStatus.className = 'nf-qs-val ' + (s.checkedInToday ? 'checkin-done' : 'checkin-pending');
   }
 
   if (nofapCheckinBtn) {
+    const titleEl = nofapCheckinBtn.querySelector('.nf-action-title');
+    const descEl = nofapCheckinBtn.querySelector('.nf-action-desc');
     if (s.checkedInToday) {
-      nofapCheckinBtn.textContent = 'Checked In Today';
+      if (titleEl) titleEl.textContent = 'Checked In';
+      if (descEl) descEl.textContent = 'You\'re good for today!';
       nofapCheckinBtn.disabled = true;
       nofapCheckinBtn.classList.add('btn-disabled');
     } else {
-      nofapCheckinBtn.textContent = 'Daily Check-in';
+      if (titleEl) titleEl.textContent = 'Daily Check-in';
+      if (descEl) descEl.textContent = 'Confirm you stayed clean today';
       nofapCheckinBtn.disabled = false;
       nofapCheckinBtn.classList.remove('btn-disabled');
     }
@@ -2412,6 +2416,21 @@ function scheduleNoFapReminder() {
 
 wireNoFapEvents();
 scheduleNoFapReminder();
+
+// Tab switching for accountability module
+function wireNfTabs() {
+  document.querySelectorAll('.nf-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.nftab;
+      document.querySelectorAll('.nf-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.nf-tab-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const panel = document.querySelector(`[data-nfpanel="${target}"]`);
+      if (panel) panel.classList.add('active');
+    });
+  });
+}
+wireNfTabs();
 
 // === DIARY / JOURNAL ===
 
