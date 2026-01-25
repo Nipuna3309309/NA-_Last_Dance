@@ -1,13 +1,14 @@
 const express = require('express');
 const path = require('path');
 const db = require('./db');
+const gemini = require('./gemini');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const CATEGORIES = [
   'Internship',
-  'Research Paper',
+  'Research',
   'IT4070',
   'IT4031',
   'IT4021',
@@ -734,6 +735,20 @@ app.get('/api/nofap/history', async (req, res) => {
   }
 });
 
+// Get monthly tracker data
+app.get('/api/nofap/tracker', async (req, res) => {
+  const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+  const month = parseInt(req.query.month, 10) || (new Date().getMonth() + 1);
+
+  try {
+    const data = await db.getTrackerData(year, month);
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load tracker data' });
+  }
+});
+
 // Get a random motivation quote
 app.get('/api/nofap/motivation', (req, res) => {
   const quotes = db.NOFAP_MOTIVATIONS;
@@ -786,6 +801,317 @@ app.delete('/api/diary/:date', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to delete diary entry' });
+  }
+});
+
+// === ENGAGEMENT FEATURES API ===
+
+// Daily Score Widget - calculates 0-100 score based on today's performance
+app.get('/api/daily-score', async (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Get NoFap status for streak and check-in
+    const nofapStatus = await db.getNoFapStatus();
+    const streak = nofapStatus.currentStreak || 0;
+    const checkedIn = nofapStatus.checkedInToday;
+
+    // Get today's diary for mood
+    const diaryEntry = await db.getDiaryEntry(today);
+    const mood = diaryEntry ? diaryEntry.mood : 0;
+
+    // Get today's completed tasks
+    const allTasks = await db.getTasks({ status: 'Done' });
+    const todayTasks = allTasks.filter(t => t.updated_at && t.updated_at.slice(0, 10) === today);
+
+    // Get today's study sessions
+    const studySessions = await db.getStudySessions({ from: today, to: today });
+    const studyMinutes = studySessions.reduce((sum, s) => sum + s.duration_minutes, 0);
+
+    // Get today's exercise
+    const physicalLogs = await db.getPhysicalLogs({ from: today, to: today });
+    const exercised = physicalLogs.length > 0;
+
+    // Calculate score (0-100)
+    let score = 0;
+    const breakdown = {};
+
+    // Streak: up to 20 points (1 point per day, max 20)
+    breakdown.streak = Math.min(20, streak);
+    score += breakdown.streak;
+
+    // Check-in: 15 points
+    breakdown.checkin = checkedIn ? 15 : 0;
+    score += breakdown.checkin;
+
+    // Mood: up to 10 points (mood is 1-10, scale to 10 pts)
+    breakdown.mood = mood > 0 ? mood : 0;
+    score += breakdown.mood;
+
+    // Tasks: up to 25 points (5 pts per task, max 5 tasks = 25)
+    breakdown.tasks = Math.min(25, todayTasks.length * 5);
+    score += breakdown.tasks;
+
+    // Study: up to 15 points (1 pt per 10 mins, max 150 mins = 15 pts)
+    breakdown.study = Math.min(15, Math.floor(studyMinutes / 10));
+    score += breakdown.study;
+
+    // Exercise: 15 points
+    breakdown.exercise = exercised ? 15 : 0;
+    score += breakdown.exercise;
+
+    // Determine color based on score
+    let color = 'red';
+    if (score >= 80) color = 'green';
+    else if (score >= 60) color = 'yellow';
+    else if (score >= 40) color = 'orange';
+
+    res.json({
+      score,
+      maxScore: 100,
+      color,
+      breakdown,
+      streak,
+      checkedIn,
+      tasksCompleted: todayTasks.length,
+      studyMinutes,
+      exercised
+    });
+  } catch (err) {
+    console.error('Daily score error:', err);
+    res.status(500).json({ error: 'Failed to calculate daily score' });
+  }
+});
+
+// Achievement data for badges
+app.get('/api/achievements-data', async (req, res) => {
+  try {
+    const nofapStatus = await db.getNoFapStatus();
+    const plantStatus = await db.getPlantStatus();
+    const allTasks = await db.getTasks({});
+    const doneTasks = allTasks.filter(t => t.status === 'Done');
+    const studySessions = await db.getStudySessions({});
+    const physicalLogs = await db.getPhysicalLogs({});
+
+    const totalStudyMins = studySessions.reduce((sum, s) => sum + s.duration_minutes, 0);
+
+    res.json({
+      streak: nofapStatus.currentStreak || 0,
+      bestStreak: nofapStatus.bestStreak || 0,
+      totalPoints: plantStatus.totalPoints || 0,
+      urgesResisted: nofapStatus.urgesResisted || 0,
+      tasksCompleted: doneTasks.length,
+      totalStudyMinutes: totalStudyMins,
+      exerciseSessions: physicalLogs.length,
+      checkedInToday: nofapStatus.checkedInToday,
+      plantLevel: plantStatus.currentLevel || 0
+    });
+  } catch (err) {
+    console.error('Achievements data error:', err);
+    res.status(500).json({ error: 'Failed to load achievements data' });
+  }
+});
+
+// Danger hours analysis
+app.get('/api/danger-hours', async (req, res) => {
+  try {
+    const history = await db.getNoFapHistory(90);
+    const urges = history.urges || [];
+
+    // Count urges by hour
+    const hourCounts = {};
+    for (let i = 0; i < 24; i++) hourCounts[i] = 0;
+
+    urges.forEach(u => {
+      const hour = new Date(u.created_at).getHours();
+      hourCounts[hour]++;
+    });
+
+    // Find peak hours (top 3 hours with most urges)
+    const sortedHours = Object.entries(hourCounts)
+      .sort((a, b) => b[1] - a[1])
+      .filter(([_, count]) => count > 0)
+      .slice(0, 3);
+
+    const dangerHours = sortedHours.map(([hour, count]) => ({
+      hour: parseInt(hour),
+      count,
+      label: formatHour(parseInt(hour))
+    }));
+
+    // Check if current hour is a danger hour
+    const currentHour = new Date().getHours();
+    const isCurrentlyDanger = dangerHours.some(h => h.hour === currentHour);
+
+    res.json({
+      dangerHours,
+      isCurrentlyDanger,
+      currentHour,
+      totalUrges: urges.length
+    });
+  } catch (err) {
+    console.error('Danger hours error:', err);
+    res.status(500).json({ error: 'Failed to analyze danger hours' });
+  }
+});
+
+function formatHour(hour) {
+  if (hour === 0) return '12AM';
+  if (hour === 12) return '12PM';
+  if (hour < 12) return `${hour}AM`;
+  return `${hour - 12}PM`;
+}
+
+// Weekly comparison
+app.get('/api/weekly-comparison', async (req, res) => {
+  try {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+
+    // This week (last 7 days)
+    const weekStart = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    // Last week (7-14 days ago)
+    const lastWeekStart = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const lastWeekEnd = new Date(now - 7 * 24 * 60 * 60 * 1000 - 1).toISOString().slice(0, 10);
+
+    // This week data
+    const thisWeekTasks = (await db.getTasks({ status: 'Done' }))
+      .filter(t => t.updated_at >= weekStart);
+    const thisWeekStudy = await db.getStudySessions({ from: weekStart, to: today });
+    const thisWeekStudyMins = thisWeekStudy.reduce((sum, s) => sum + s.duration_minutes, 0);
+
+    // Get tracker data for clean days
+    const thisWeekTracker = await db.getTrackerData(now.getFullYear(), now.getMonth() + 1);
+    const thisWeekClean = thisWeekTracker.days
+      .filter(d => d.date >= weekStart && d.date <= today && d.status === 'clean').length;
+
+    // Last week data (approximate - use previous month if needed)
+    const lastWeekTasks = (await db.getTasks({ status: 'Done' }))
+      .filter(t => t.updated_at >= lastWeekStart && t.updated_at <= lastWeekEnd);
+    const lastWeekStudy = await db.getStudySessions({ from: lastWeekStart, to: lastWeekEnd });
+    const lastWeekStudyMins = lastWeekStudy.reduce((sum, s) => sum + s.duration_minutes, 0);
+
+    // Calculate percentages
+    const calcChange = (current, previous) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - previous) / previous) * 100);
+    };
+
+    res.json({
+      thisWeek: {
+        cleanDays: thisWeekClean,
+        tasksCompleted: thisWeekTasks.length,
+        studyMinutes: thisWeekStudyMins
+      },
+      lastWeek: {
+        cleanDays: 0, // Would need more complex query
+        tasksCompleted: lastWeekTasks.length,
+        studyMinutes: lastWeekStudyMins
+      },
+      changes: {
+        tasksChange: calcChange(thisWeekTasks.length, lastWeekTasks.length),
+        studyChange: calcChange(thisWeekStudyMins, lastWeekStudyMins)
+      }
+    });
+  } catch (err) {
+    console.error('Weekly comparison error:', err);
+    res.status(500).json({ error: 'Failed to get weekly comparison' });
+  }
+});
+
+// === AI (GEMINI) API ===
+
+// Get AI-powered motivation
+app.post('/api/ai/motivation', async (req, res) => {
+  try {
+    const status = await db.getNoFapStatus();
+    const diaryEntries = await db.getDiaryEntries(1);
+    const latestMood = diaryEntries.length > 0 ? diaryEntries[0].mood : 5;
+    const hour = new Date().getHours();
+    const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+
+    const plantStatus = await db.getPlantStatus();
+    const motivation = await gemini.getSmartMotivation({
+      streak: status.currentStreak,
+      mood: latestMood,
+      recentUrges: status.urgesResisted || 0,
+      timeOfDay,
+      totalPoints: plantStatus.totalPoints
+    });
+
+    res.json({ motivation });
+  } catch (err) {
+    console.error('AI motivation error:', err.message);
+    // Fallback to static quotes if AI fails
+    const quotes = db.NOFAP_MOTIVATIONS;
+    res.json({ motivation: quotes[Math.floor(Math.random() * quotes.length)], fallback: true });
+  }
+});
+
+// Get AI diary insights
+app.post('/api/ai/diary-insights', async (req, res) => {
+  try {
+    const entries = await db.getDiaryEntries(parseInt(req.body.days) || 7);
+    if (entries.length === 0) {
+      return res.status(400).json({ error: 'No diary entries found. Write some entries first!' });
+    }
+    const insights = await gemini.getDiaryInsights(entries);
+    res.json(insights);
+  } catch (err) {
+    console.error('AI diary insights error:', err.message);
+    res.status(500).json({ error: 'Failed to generate insights. Check GEMINI_API_KEY.' });
+  }
+});
+
+// Get AI task suggestions
+app.post('/api/ai/task-suggest', async (req, res) => {
+  const { title, description } = req.body || {};
+  if (!title) return res.status(400).json({ error: 'Title is required' });
+
+  try {
+    const suggestions = await gemini.getTaskSuggestions(title, description || '', CATEGORIES);
+    res.json(suggestions);
+  } catch (err) {
+    console.error('AI task suggest error:', err.message);
+    res.status(500).json({ error: 'Failed to generate suggestions. Check GEMINI_API_KEY.' });
+  }
+});
+
+// Get AI weekly progress summary
+app.post('/api/ai/progress-summary', async (req, res) => {
+  try {
+    const now = new Date();
+    const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const today = now.toISOString().slice(0, 10);
+
+    const tasks = await db.getTasks({ status: 'Done' });
+    const weekTasks = tasks.filter(t => t.updated_at >= weekAgo);
+    const studySessions = await db.getStudySessions({ from: weekAgo, to: today });
+    const physicalLogs = await db.getPhysicalLogs({ from: weekAgo, to: today });
+    const nofapStatus = await db.getNoFapStatus();
+    const diaryEntries = await db.getDiaryEntries(7);
+    const plantStatus = await db.getPlantStatus();
+
+    const avgMood = diaryEntries.length > 0
+      ? Math.round(diaryEntries.reduce((sum, e) => sum + e.mood, 0) / diaryEntries.length * 10) / 10
+      : 5;
+
+    const totalStudyMins = studySessions.reduce((sum, s) => sum + s.duration_minutes, 0);
+
+    const summary = await gemini.getProgressSummary({
+      tasksCompleted: weekTasks.length,
+      studyMinutes: totalStudyMins,
+      exerciseSessions: physicalLogs.length,
+      streak: nofapStatus.current_streak,
+      avgMood,
+      weeklyPoints: plantStatus.total_points
+    });
+
+    res.json(summary);
+  } catch (err) {
+    console.error('AI progress summary error:', err.message);
+    res.status(500).json({ error: 'Failed to generate summary. Check GEMINI_API_KEY.' });
   }
 });
 

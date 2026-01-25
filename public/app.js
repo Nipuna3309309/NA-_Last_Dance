@@ -2,7 +2,7 @@
 const statuses = ['Not Started', 'In Progress', 'Blocked', 'Done'];
 const categories = [
   'Internship',
-  'Research Paper',
+  'Research',
   'IT4070',
   'IT4031',
   'IT4021',
@@ -1212,6 +1212,7 @@ function wireEvents() {
   });
 
   // Sidebar navigation
+  const researchTimeline = document.getElementById('researchTimeline');
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
@@ -1221,6 +1222,14 @@ function wireEvents() {
         filterCategory.value = state.filters.category;
       } else {
         filterCategory.value = '';
+      }
+      // Show/hide research timeline
+      if (researchTimeline) {
+        if (state.filters.category === 'Research') {
+          researchTimeline.classList.remove('hidden');
+        } else {
+          researchTimeline.classList.add('hidden');
+        }
       }
       loadTasks();
     });
@@ -1358,18 +1367,29 @@ function switchModule(module) {
   const toolbarUI = document.querySelector('.toolbar');
   const quoteUI = document.querySelector('.quote-section');
 
+  const researchTl = document.getElementById('researchTimeline');
+
   if (module === 'tasks') {
     viewContainer.classList.remove('hidden');
     taskUI.style.display = '';
     progressUI.style.display = '';
     toolbarUI.style.display = '';
     quoteUI.style.display = '';
+    // Show research timeline if Research category is active
+    if (researchTl) {
+      if (state.filters.category === 'Research') {
+        researchTl.classList.remove('hidden');
+      } else {
+        researchTl.classList.add('hidden');
+      }
+    }
     loadTasks();
   } else {
     taskUI.style.display = 'none';
     progressUI.style.display = 'none';
     toolbarUI.style.display = 'none';
     quoteUI.style.display = 'none';
+    if (researchTl) researchTl.classList.add('hidden');
 
     if (module === 'calendar') {
       calendarContainer.classList.remove('hidden');
@@ -3213,3 +3233,749 @@ switchModule = function(module) {
     }, 100);
   }
 };
+
+// ============ HABIT TRACKER & ANALYTICS ============
+
+const trackerState = {
+  year: new Date().getFullYear(),
+  month: new Date().getMonth() + 1
+};
+
+const trackerGrid = document.getElementById('trackerGrid');
+const trackerStats = document.getElementById('trackerStats');
+const trackerMonthLabel = document.getElementById('trackerMonthLabel');
+const trackerPrevMonth = document.getElementById('trackerPrevMonth');
+const trackerNextMonth = document.getElementById('trackerNextMonth');
+
+if (trackerPrevMonth) {
+  trackerPrevMonth.addEventListener('click', () => {
+    trackerState.month--;
+    if (trackerState.month < 1) { trackerState.month = 12; trackerState.year--; }
+    loadTrackerData();
+  });
+}
+
+if (trackerNextMonth) {
+  trackerNextMonth.addEventListener('click', () => {
+    trackerState.month++;
+    if (trackerState.month > 12) { trackerState.month = 1; trackerState.year++; }
+    loadTrackerData();
+  });
+}
+
+async function loadTrackerData() {
+  if (!trackerGrid) return;
+  try {
+    const res = await fetch(`/api/nofap/tracker?year=${trackerState.year}&month=${trackerState.month}`);
+    const data = await res.json();
+    renderTracker(data);
+  } catch (err) {
+    console.error('Failed to load tracker:', err);
+  }
+}
+
+function renderTracker(data) {
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  if (trackerMonthLabel) {
+    trackerMonthLabel.textContent = `${months[data.month - 1]} ${data.year}`;
+  }
+
+  // Render grid
+  const firstDay = new Date(data.year, data.month - 1, 1).getDay();
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let html = dayNames.map(d => `<div class="tracker-day-name">${d}</div>`).join('');
+
+  // Empty cells for days before month starts
+  for (let i = 0; i < firstDay; i++) {
+    html += `<div class="tracker-cell tracker-empty"></div>`;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  data.days.forEach(day => {
+    const isToday = day.date === today;
+    const statusClass = `tl-${day.status === 'urge_resisted' ? 'urge' : day.status}`;
+    const moodInfo = day.mood ? ` | Mood: ${day.mood}/10` : '';
+    const urgeInfo = day.urges ? ` | Urges: ${day.urges.resisted}/${day.urges.total} resisted` : '';
+    html += `<div class="tracker-cell ${statusClass} ${isToday ? 'tracker-today' : ''}" title="${day.date}: ${day.status}${moodInfo}${urgeInfo}">
+      <span class="tracker-day-num">${day.day}</span>
+    </div>`;
+  });
+
+  trackerGrid.innerHTML = html;
+
+  // Render stats
+  const s = data.stats;
+  if (trackerStats) {
+    trackerStats.innerHTML = `
+      <div class="tracker-stats-grid">
+        <div class="tracker-stat-card">
+          <div class="tracker-stat-row">
+            <div class="tracker-stat-box">
+              <span class="tracker-stat-num green">${s.weekClean}</span>
+              <span class="tracker-stat-label">Clean (7d)</span>
+            </div>
+            <div class="tracker-stat-box">
+              <span class="tracker-stat-num red">${s.weekRelapses}</span>
+              <span class="tracker-stat-label">Relapses (7d)</span>
+            </div>
+          </div>
+        </div>
+        <div class="tracker-stat-card">
+          <div class="tracker-stat-row">
+            <div class="tracker-stat-box">
+              <span class="tracker-stat-num green">${s.monthClean}</span>
+              <span class="tracker-stat-label">Clean (Month)</span>
+            </div>
+            <div class="tracker-stat-box">
+              <span class="tracker-stat-num orange">${s.monthUrgesResisted}</span>
+              <span class="tracker-stat-label">Urges Resisted</span>
+            </div>
+            <div class="tracker-stat-box">
+              <span class="tracker-stat-num red">${s.monthRelapses}</span>
+              <span class="tracker-stat-label">Relapses</span>
+            </div>
+          </div>
+        </div>
+        <div class="tracker-stat-card">
+          <div class="tracker-stat-row">
+            <div class="tracker-stat-box">
+              <span class="tracker-stat-num blue">${s.avgMood !== null ? s.avgMood : '-'}</span>
+              <span class="tracker-stat-label">Avg Mood</span>
+            </div>
+            <div class="tracker-stat-box">
+              <span class="tracker-stat-num">${s.totalDaysTracked}</span>
+              <span class="tracker-stat-label">Days Tracked</span>
+            </div>
+            <div class="tracker-stat-box">
+              <span class="tracker-stat-num green">${s.monthClean > 0 ? Math.round(s.monthClean / Math.max(s.totalDaysTracked, 1) * 100) : 0}%</span>
+              <span class="tracker-stat-label">Success Rate</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// Load tracker when switching to tracker tab
+const origWireNfTabs = typeof wireNfTabs === 'function' ? wireNfTabs : null;
+document.querySelectorAll('.nf-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if (tab.dataset.nftab === 'tracker') {
+      loadTrackerData();
+    }
+  });
+});
+
+// ============ RESEARCH TIMELINE ============
+
+const RESEARCH_MILESTONES = [
+  { id: 'brainstorm', title: 'Brainstorming', date: 'Jul 2025', done: true },
+  { id: 'group_reg', title: 'Group Registration', date: '25 Mar', done: true },
+  { id: 'taf', title: 'TAF', date: '26 May', done: true },
+  { id: 'charter', title: 'Project Charter', date: '30 Jun - 16 Jul', done: true },
+  { id: 'proposal_draft', title: 'Proposal (Draft)', date: '23 Jul', done: true },
+  { id: 'proposal_pres', title: 'Proposal Presentation', date: '15 Aug', done: true },
+  { id: 'proposal_final', title: 'Proposal (Final)', date: '8-12 Sep', done: true },
+  { id: 'ppt1', title: 'PPT I', date: '19 Sep', done: true },
+  { id: 'checklist1', title: 'Check List I', date: '15-19 Dec', done: true },
+  { id: 'research_paper', title: 'Research Paper', date: '15-19 Dec', done: true },
+  { id: 'final_reports', title: 'Final Reports', date: 'Mar 2026', done: false },
+  { id: 'ppt2', title: 'PPT II', date: 'Mar 2026', done: false },
+  { id: 'checklist2', title: 'Check List II', date: 'Mar 2026', done: false },
+  { id: 'viva', title: 'VIVA', date: 'May 2026', done: false },
+  { id: 'rp_acceptance', title: 'RP Acceptance', date: 'Jun 2026', done: false },
+  { id: 'website', title: 'Project Website', date: 'Jun 2026', done: false },
+  { id: 'logbook', title: 'Research Logbook', date: 'Jun 2026', done: false }
+];
+
+function loadResearchTimeline() {
+  // Load saved state from localStorage
+  const saved = JSON.parse(localStorage.getItem('researchTimeline') || '{}');
+  RESEARCH_MILESTONES.forEach(m => {
+    if (saved[m.id] !== undefined) m.done = saved[m.id];
+  });
+  renderResearchTimeline();
+}
+
+function saveResearchState() {
+  const state = {};
+  RESEARCH_MILESTONES.forEach(m => { state[m.id] = m.done; });
+  localStorage.setItem('researchTimeline', JSON.stringify(state));
+}
+
+function toggleMilestone(id) {
+  const m = RESEARCH_MILESTONES.find(x => x.id === id);
+  if (m) {
+    m.done = !m.done;
+    saveResearchState();
+    renderResearchTimeline();
+  }
+}
+
+function renderResearchTimeline() {
+  const track = document.getElementById('rtlTrack');
+  if (!track) return;
+
+  const firstUndone = RESEARCH_MILESTONES.findIndex(m => !m.done);
+
+  track.innerHTML = RESEARCH_MILESTONES.map((m, i) => {
+    let status = m.done ? 'done' : (i === firstUndone ? 'current' : 'pending');
+    return `
+      <div class="rtl-node ${status}" onclick="toggleMilestone('${m.id}')" title="Click to mark ${m.done ? 'incomplete' : 'complete'}">
+        <div class="rtl-dot">
+          ${m.done ? '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="#fff" stroke-width="2" fill="none"/></svg>' : ''}
+        </div>
+        <div class="rtl-label">${m.title}</div>
+        <div class="rtl-date">${m.date}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+loadResearchTimeline();
+
+// ============ AI (GEMINI) INTEGRATION ============
+
+// AI Motivation
+const aiMotivationBtn = document.getElementById('aiMotivationBtn');
+if (aiMotivationBtn) {
+  aiMotivationBtn.addEventListener('click', async () => {
+    aiMotivationBtn.disabled = true;
+    aiMotivationBtn.classList.add('loading');
+    aiMotivationBtn.textContent = 'Thinking';
+    try {
+      const res = await fetch('/api/ai/motivation', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const data = await res.json();
+      if (nofapMotivation) {
+        nofapMotivation.textContent = data.motivation;
+        nofapMotivation.style.transition = 'opacity 0.3s';
+        nofapMotivation.style.opacity = '0';
+        setTimeout(() => { nofapMotivation.style.opacity = '1'; }, 50);
+      }
+      if (data.fallback) {
+        showToast('Using offline quotes (set GEMINI_API_KEY for AI)', 'warning');
+      }
+    } catch (err) {
+      showToast('AI motivation failed', 'error');
+    } finally {
+      aiMotivationBtn.disabled = false;
+      aiMotivationBtn.classList.remove('loading');
+      aiMotivationBtn.textContent = 'AI Boost';
+    }
+  });
+}
+
+// AI Diary Insights
+const aiInsightsBtn = document.getElementById('aiInsightsBtn');
+const aiInsightsPanel = document.getElementById('aiInsightsPanel');
+if (aiInsightsBtn && aiInsightsPanel) {
+  aiInsightsBtn.addEventListener('click', async () => {
+    aiInsightsBtn.disabled = true;
+    aiInsightsBtn.classList.add('loading');
+    aiInsightsBtn.textContent = 'Analyzing';
+    aiInsightsPanel.style.display = 'none';
+    try {
+      const res = await fetch('/api/ai/diary-insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 7 })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed');
+      }
+      const data = await res.json();
+      aiInsightsPanel.innerHTML = renderDiaryInsights(data);
+      aiInsightsPanel.style.display = 'block';
+    } catch (err) {
+      showToast(err.message || 'AI insights failed', 'error');
+    } finally {
+      aiInsightsBtn.disabled = false;
+      aiInsightsBtn.classList.remove('loading');
+      aiInsightsBtn.textContent = 'Get AI Insights';
+    }
+  });
+}
+
+function renderDiaryInsights(data) {
+  const trendClass = data.mood_trend || 'stable';
+  let html = `<h4>Weekly Insights</h4>`;
+  html += `<span class="ai-trend ${trendClass}">Mood: ${trendClass} (avg ${data.average_mood}/10)</span>`;
+
+  if (data.patterns && data.patterns.length) {
+    html += `<p style="margin-top:0.5rem;color:#94a3b8;font-size:0.78rem;">Patterns noticed:</p><ul>`;
+    data.patterns.forEach(p => { html += `<li>${p}</li>`; });
+    html += `</ul>`;
+  }
+
+  if (data.triggers_identified && data.triggers_identified.length) {
+    html += `<p style="color:#94a3b8;font-size:0.78rem;">Triggers:</p><ul>`;
+    data.triggers_identified.forEach(t => { html += `<li>${t}</li>`; });
+    html += `</ul>`;
+  }
+
+  if (data.coping_strategies && data.coping_strategies.length) {
+    html += `<p style="color:#94a3b8;font-size:0.78rem;">Strategies that work:</p><ul>`;
+    data.coping_strategies.forEach(s => { html += `<li>${s}</li>`; });
+    html += `</ul>`;
+  }
+
+  if (data.weekly_summary) {
+    html += `<div class="ai-summary">${data.weekly_summary}</div>`;
+  }
+
+  if (data.recommendation) {
+    html += `<div class="ai-recommendation"><strong>Next step:</strong> ${data.recommendation}</div>`;
+  }
+
+  return html;
+}
+
+// AI Task Suggestions
+const aiSuggestBtn = document.getElementById('aiSuggestBtn');
+const aiSuggestPanel = document.getElementById('aiSuggestPanel');
+let pendingAiSuggestions = null;
+
+if (aiSuggestBtn && aiSuggestPanel) {
+  aiSuggestBtn.addEventListener('click', async () => {
+    const title = document.getElementById('titleInput').value.trim();
+    if (!title) {
+      showToast('Enter a task title first', 'warning');
+      return;
+    }
+    const description = document.getElementById('descriptionInput').value.trim();
+
+    aiSuggestBtn.disabled = true;
+    aiSuggestBtn.classList.add('loading');
+    aiSuggestBtn.textContent = 'Thinking';
+    aiSuggestPanel.style.display = 'none';
+
+    try {
+      const res = await fetch('/api/ai/task-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed');
+      }
+      const data = await res.json();
+      pendingAiSuggestions = data;
+      aiSuggestPanel.innerHTML = renderTaskSuggestions(data);
+      aiSuggestPanel.style.display = 'block';
+    } catch (err) {
+      showToast(err.message || 'AI suggest failed', 'error');
+    } finally {
+      aiSuggestBtn.disabled = false;
+      aiSuggestBtn.classList.remove('loading');
+      aiSuggestBtn.textContent = 'AI Suggest';
+    }
+  });
+}
+
+function renderTaskSuggestions(data) {
+  let html = `<h4>AI Suggestions</h4>`;
+  html += `<div class="ai-meta">`;
+  html += `<span class="ai-meta-item"><strong>Category:</strong> ${data.suggested_category}</span>`;
+  html += `<span class="ai-meta-item"><strong>Priority:</strong> ${data.suggested_priority}</span>`;
+  html += `<span class="ai-meta-item"><strong>Sessions:</strong> ~${data.estimated_sessions} x 25min</span>`;
+  html += `</div>`;
+
+  if (data.suggested_subtasks && data.suggested_subtasks.length) {
+    html += `<div class="ai-subtasks"><p style="color:#94a3b8;font-size:0.78rem;margin-top:0.5rem;">Suggested subtasks:</p>`;
+    data.suggested_subtasks.forEach(s => {
+      html += `<div class="ai-subtask-item"><span>• ${s}</span></div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (data.tips) {
+    html += `<div class="ai-recommendation" style="margin-top:0.5rem;"><strong>Tip:</strong> ${data.tips}</div>`;
+  }
+
+  html += `<button type="button" class="ai-btn ai-apply-btn" onclick="applyAiSuggestions()">Apply Category & Priority</button>`;
+  return html;
+}
+
+function applyAiSuggestions() {
+  if (!pendingAiSuggestions) return;
+  const categoryInput = document.getElementById('categoryInput');
+  const priorityInput = document.getElementById('priorityInput');
+
+  if (categoryInput && pendingAiSuggestions.suggested_category) {
+    categoryInput.value = pendingAiSuggestions.suggested_category;
+  }
+  if (priorityInput && pendingAiSuggestions.suggested_priority) {
+    priorityInput.value = pendingAiSuggestions.suggested_priority;
+  }
+  showToast('Applied AI suggestions!', 'success');
+}
+
+// ============ ENGAGEMENT FEATURES ============
+
+// === DAILY SCORE WIDGET ===
+
+const dailyScoreNumber = document.getElementById('dailyScoreNumber');
+const scoreRingFill = document.getElementById('scoreRingFill');
+const scoreGreeting = document.getElementById('scoreGreeting');
+const scoreContext = document.getElementById('scoreContext');
+const sbStreak = document.getElementById('sbStreak');
+const sbCheckin = document.getElementById('sbCheckin');
+const sbMood = document.getElementById('sbMood');
+const sbTasks = document.getElementById('sbTasks');
+const sbStudy = document.getElementById('sbStudy');
+const sbExercise = document.getElementById('sbExercise');
+const trophyBtn = document.getElementById('trophyBtn');
+
+async function loadDailyScore() {
+  try {
+    const res = await fetch('/api/daily-score');
+    const data = await res.json();
+    renderDailyScore(data);
+  } catch (err) {
+    console.error('Failed to load daily score:', err);
+  }
+}
+
+function renderDailyScore(data) {
+  if (!dailyScoreNumber) return;
+
+  // Animate score number
+  animateNumber(dailyScoreNumber, data.score);
+
+  // Update ring
+  if (scoreRingFill) {
+    const circumference = 2 * Math.PI * 52;
+    const offset = circumference - (data.score / 100) * circumference;
+    scoreRingFill.style.strokeDasharray = circumference;
+    scoreRingFill.style.strokeDashoffset = offset;
+
+    // Color based on score
+    scoreRingFill.className = 'score-ring-fill score-' + data.color;
+  }
+
+  // Update greeting
+  const greeting = getPersonalizedGreeting(data.streak, data.checkedIn);
+  if (scoreGreeting) scoreGreeting.textContent = greeting.title;
+  if (scoreContext) scoreContext.textContent = greeting.context;
+
+  // Update breakdown
+  if (sbStreak) sbStreak.textContent = data.breakdown.streak;
+  if (sbCheckin) sbCheckin.textContent = data.breakdown.checkin;
+  if (sbMood) sbMood.textContent = data.breakdown.mood;
+  if (sbTasks) sbTasks.textContent = data.breakdown.tasks;
+  if (sbStudy) sbStudy.textContent = data.breakdown.study;
+  if (sbExercise) sbExercise.textContent = data.breakdown.exercise;
+
+  // Update fire animations
+  updateStreakFire(data.streak);
+}
+
+function animateNumber(el, target) {
+  const current = parseInt(el.textContent) || 0;
+  const diff = target - current;
+  const steps = 30;
+  const stepValue = diff / steps;
+  let step = 0;
+
+  const interval = setInterval(() => {
+    step++;
+    el.textContent = Math.round(current + stepValue * step);
+    if (step >= steps) {
+      el.textContent = target;
+      clearInterval(interval);
+    }
+  }, 20);
+}
+
+function getPersonalizedGreeting(streak, checkedIn) {
+  const hour = new Date().getHours();
+  let timeGreeting;
+  if (hour < 12) timeGreeting = 'Good morning';
+  else if (hour < 17) timeGreeting = 'Good afternoon';
+  else timeGreeting = 'Good evening';
+
+  // Title based on streak
+  let title;
+  if (streak >= 100) title = 'Legend';
+  else if (streak >= 30) title = 'Champion';
+  else if (streak >= 7) title = 'Warrior';
+  else if (streak >= 1) title = 'Fighter';
+  else title = 'Friend';
+
+  // Context based on status
+  let context;
+  if (!checkedIn && streak === 0) {
+    context = "Let's start fresh today!";
+  } else if (!checkedIn) {
+    context = `Day ${streak + 1} awaits your check-in!`;
+  } else if (streak >= 30) {
+    context = `${streak} days strong! Legendary status!`;
+  } else if (streak >= 7) {
+    context = `${streak} days! Keep the momentum!`;
+  } else if (streak >= 1) {
+    context = `Day ${streak}! Every day counts!`;
+  } else {
+    context = "Checked in! Build that streak!";
+  }
+
+  return {
+    title: `${timeGreeting}, ${title}!`,
+    context
+  };
+}
+
+// === STREAK FIRE ANIMATION ===
+
+const streakFire = document.getElementById('streakFire');
+const heroStreakFire = document.getElementById('heroStreakFire');
+
+function updateStreakFire(streak) {
+  const fireClass = getFireClass(streak);
+
+  if (streakFire) {
+    streakFire.className = 'streak-fire ' + fireClass;
+  }
+  if (heroStreakFire) {
+    heroStreakFire.className = 'hero-streak-fire ' + fireClass;
+  }
+}
+
+function getFireClass(streak) {
+  if (streak >= 100) return 'fire-legendary';
+  if (streak >= 30) return 'fire-large';
+  if (streak >= 7) return 'fire-medium';
+  if (streak >= 1) return 'fire-small';
+  return '';
+}
+
+// === DANGER HOURS ===
+
+const dangerHoursAlert = document.getElementById('dangerHoursAlert');
+const dangerHoursText = document.getElementById('dangerHoursText');
+
+async function loadDangerHours() {
+  if (!dangerHoursAlert) return;
+  try {
+    const res = await fetch('/api/danger-hours');
+    const data = await res.json();
+    renderDangerHours(data);
+  } catch (err) {
+    console.error('Failed to load danger hours:', err);
+  }
+}
+
+function renderDangerHours(data) {
+  if (!dangerHoursAlert || !data.dangerHours || data.dangerHours.length === 0) {
+    if (dangerHoursAlert) dangerHoursAlert.classList.add('hidden');
+    return;
+  }
+
+  dangerHoursAlert.classList.remove('hidden');
+
+  const hoursText = data.dangerHours.map(h => h.label).join(', ');
+  if (dangerHoursText) dangerHoursText.textContent = hoursText;
+
+  if (data.isCurrentlyDanger) {
+    dangerHoursAlert.classList.add('active');
+  } else {
+    dangerHoursAlert.classList.remove('active');
+  }
+}
+
+// === WEEK COMPARISON ===
+
+const wcTasksThis = document.getElementById('wcTasksThis');
+const wcTasksLast = document.getElementById('wcTasksLast');
+const wcTasksChange = document.getElementById('wcTasksChange');
+const wcStudyThis = document.getElementById('wcStudyThis');
+const wcStudyLast = document.getElementById('wcStudyLast');
+const wcStudyChange = document.getElementById('wcStudyChange');
+const wcCleanThis = document.getElementById('wcCleanThis');
+
+async function loadWeekComparison() {
+  if (!wcTasksThis) return;
+  try {
+    const res = await fetch('/api/weekly-comparison');
+    const data = await res.json();
+    renderWeekComparison(data);
+  } catch (err) {
+    console.error('Failed to load week comparison:', err);
+  }
+}
+
+function renderWeekComparison(data) {
+  if (wcTasksThis) wcTasksThis.textContent = data.thisWeek.tasksCompleted;
+  if (wcTasksLast) wcTasksLast.textContent = data.lastWeek.tasksCompleted;
+  if (wcTasksChange) {
+    const change = data.changes.tasksChange;
+    wcTasksChange.textContent = (change >= 0 ? '+' : '') + change + '%';
+    wcTasksChange.className = 'wc-change ' + (change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral');
+  }
+
+  if (wcStudyThis) wcStudyThis.textContent = data.thisWeek.studyMinutes;
+  if (wcStudyLast) wcStudyLast.textContent = data.lastWeek.studyMinutes;
+  if (wcStudyChange) {
+    const change = data.changes.studyChange;
+    wcStudyChange.textContent = (change >= 0 ? '+' : '') + change + '%';
+    wcStudyChange.className = 'wc-change ' + (change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral');
+  }
+
+  if (wcCleanThis) wcCleanThis.textContent = data.thisWeek.cleanDays;
+}
+
+// === ACHIEVEMENT BADGES ===
+
+const BADGES = [
+  { id: 'first_checkin', name: 'First Step', desc: 'Complete your first check-in', icon: '🌟', check: d => d.checkedInToday || d.streak > 0 },
+  { id: 'streak_7', name: 'Week Warrior', desc: '7-day streak', icon: '🔥', check: d => d.streak >= 7 },
+  { id: 'streak_30', name: 'Month Master', desc: '30-day streak', icon: '🏆', check: d => d.streak >= 30 },
+  { id: 'streak_100', name: 'Century Legend', desc: '100-day streak', icon: '👑', check: d => d.streak >= 100 },
+  { id: 'points_100', name: 'Point Hunter', desc: 'Earn 100 points', icon: '💎', check: d => d.totalPoints >= 100 },
+  { id: 'points_500', name: 'Point Master', desc: 'Earn 500 points', icon: '💰', check: d => d.totalPoints >= 500 },
+  { id: 'points_1000', name: 'Point Legend', desc: 'Earn 1000 points', icon: '🌈', check: d => d.totalPoints >= 1000 },
+  { id: 'urges_10', name: 'Willpower', desc: 'Resist 10 urges', icon: '💪', check: d => d.urgesResisted >= 10 },
+  { id: 'tasks_10', name: 'Task Starter', desc: 'Complete 10 tasks', icon: '✅', check: d => d.tasksCompleted >= 10 },
+  { id: 'tasks_50', name: 'Task Master', desc: 'Complete 50 tasks', icon: '📋', check: d => d.tasksCompleted >= 50 },
+  { id: 'study_1000', name: 'Scholar', desc: 'Study 1000 minutes', icon: '📚', check: d => d.totalStudyMinutes >= 1000 },
+  { id: 'exercise_30', name: 'Fitness Buff', desc: '30 exercise sessions', icon: '🏋️', check: d => d.exerciseSessions >= 30 },
+  { id: 'plant_5', name: 'Green Thumb', desc: 'Reach Legendary plant', icon: '🌳', check: d => d.plantLevel >= 5 }
+];
+
+const badgesModalOverlay = document.getElementById('badgesModalOverlay');
+const badgesGrid = document.getElementById('badgesGrid');
+const closeBadges = document.getElementById('closeBadges');
+const badgeToast = document.getElementById('badgeToast');
+const badgeToastName = document.getElementById('badgeToastName');
+
+function getUnlockedBadges() {
+  return JSON.parse(localStorage.getItem('unlockedBadges') || '[]');
+}
+
+function saveUnlockedBadges(badges) {
+  localStorage.setItem('unlockedBadges', JSON.stringify(badges));
+}
+
+async function checkAchievements() {
+  try {
+    const res = await fetch('/api/achievements-data');
+    const data = await res.json();
+
+    const unlocked = getUnlockedBadges();
+    const newlyUnlocked = [];
+
+    BADGES.forEach(badge => {
+      if (!unlocked.includes(badge.id) && badge.check(data)) {
+        unlocked.push(badge.id);
+        newlyUnlocked.push(badge);
+      }
+    });
+
+    if (newlyUnlocked.length > 0) {
+      saveUnlockedBadges(unlocked);
+      // Show toast for first new badge
+      showBadgeToast(newlyUnlocked[0]);
+      confetti.fire();
+    }
+  } catch (err) {
+    console.error('Failed to check achievements:', err);
+  }
+}
+
+function showBadgeToast(badge) {
+  if (!badgeToast || !badgeToastName) return;
+
+  badgeToastName.textContent = badge.icon + ' ' + badge.name;
+  badgeToast.classList.remove('hidden');
+  badgeToast.classList.add('show');
+
+  setTimeout(() => {
+    badgeToast.classList.remove('show');
+    setTimeout(() => badgeToast.classList.add('hidden'), 400);
+  }, 4000);
+}
+
+function openBadgesModal() {
+  if (!badgesModalOverlay || !badgesGrid) return;
+
+  const unlocked = getUnlockedBadges();
+
+  badgesGrid.innerHTML = BADGES.map(badge => {
+    const isUnlocked = unlocked.includes(badge.id);
+    return `
+      <div class="badge-card ${isUnlocked ? 'unlocked' : 'locked'}">
+        <span class="badge-icon">${badge.icon}</span>
+        <span class="badge-name">${badge.name}</span>
+        <span class="badge-desc">${badge.desc}</span>
+        ${!isUnlocked ? '<span class="badge-lock">🔒</span>' : ''}
+      </div>
+    `;
+  }).join('');
+
+  badgesModalOverlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeBadgesModal() {
+  if (!badgesModalOverlay) return;
+  badgesModalOverlay.classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+// Wire badge events
+if (trophyBtn) {
+  trophyBtn.addEventListener('click', openBadgesModal);
+}
+
+if (closeBadges) {
+  closeBadges.addEventListener('click', closeBadgesModal);
+}
+
+if (badgesModalOverlay) {
+  badgesModalOverlay.addEventListener('click', (e) => {
+    if (e.target === badgesModalOverlay) closeBadgesModal();
+  });
+}
+
+// === INITIALIZE ENGAGEMENT FEATURES ===
+
+// Load engagement features on page load
+loadDailyScore();
+
+// Check achievements periodically and on certain actions
+checkAchievements();
+setInterval(checkAchievements, 300000); // Check every 5 minutes
+
+// Load week comparison when tracker tab is opened
+document.querySelectorAll('.nf-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if (tab.dataset.nftab === 'tracker') {
+      loadWeekComparison();
+    }
+  });
+});
+
+// Load danger hours when accountability module is opened
+const origSwitchModuleEngagement = switchModule;
+switchModule = function(module) {
+  origSwitchModuleEngagement(module);
+  if (module === 'nofap') {
+    loadDangerHours();
+    loadDailyScore(); // Refresh score
+  }
+};
+
+// Refresh daily score when actions are taken
+const origDoNoFapCheckin = doNoFapCheckin;
+doNoFapCheckin = async function() {
+  await origDoNoFapCheckin();
+  loadDailyScore();
+  checkAchievements();
+};
+
+// Global expose for onclick handlers
+window.toggleMilestone = toggleMilestone;
+window.applyAiSuggestions = applyAiSuggestions;

@@ -8,7 +8,7 @@ const db = createClient({
 
 const CATEGORIES = [
   'Internship',
-  'Research Paper',
+  'Research',
   'IT4070',
   'IT4031',
   'IT4021',
@@ -1083,6 +1083,92 @@ async function getNoFapHistory(days = 30) {
   return { logs: logs.rows, urges: urges.rows };
 }
 
+async function getTrackerData(year, month) {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${daysInMonth}`;
+
+  // Get all check-ins for the month
+  const checkins = await db.execute({
+    sql: `SELECT log_date FROM nofap_logs WHERE type = 'checkin' AND log_date >= ? AND log_date <= ?`,
+    args: [startDate, endDate]
+  });
+
+  // Get all relapses for the month
+  const relapses = await db.execute({
+    sql: `SELECT log_date FROM nofap_logs WHERE type = 'relapse' AND log_date >= ? AND log_date <= ?`,
+    args: [startDate, endDate]
+  });
+
+  // Get all urges for the month
+  const urges = await db.execute({
+    sql: `SELECT date(created_at) as urge_date, resisted FROM nofap_urges WHERE date(created_at) >= ? AND date(created_at) <= ?`,
+    args: [startDate, endDate]
+  });
+
+  // Get diary entries for mood
+  const diary = await db.execute({
+    sql: `SELECT entry_date, mood FROM diary_entries WHERE entry_date >= ? AND entry_date <= ?`,
+    args: [startDate, endDate]
+  });
+
+  const checkinDates = new Set(checkins.rows.map(r => r.log_date));
+  const relapseDates = new Set(relapses.rows.map(r => r.log_date));
+  const urgeMap = {};
+  urges.rows.forEach(r => {
+    if (!urgeMap[r.urge_date]) urgeMap[r.urge_date] = { resisted: 0, total: 0 };
+    urgeMap[r.urge_date].total++;
+    if (r.resisted) urgeMap[r.urge_date].resisted++;
+  });
+  const moodMap = {};
+  diary.rows.forEach(r => { moodMap[r.entry_date] = r.mood; });
+
+  // Build daily data
+  const days = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    let status = 'empty';
+    if (relapseDates.has(dateStr)) status = 'relapse';
+    else if (checkinDates.has(dateStr)) status = 'clean';
+    else if (urgeMap[dateStr] && urgeMap[dateStr].resisted > 0) status = 'urge_resisted';
+    days.push({
+      date: dateStr,
+      day: d,
+      status,
+      mood: moodMap[dateStr] || null,
+      urges: urgeMap[dateStr] || null
+    });
+  }
+
+  // Weekly stats
+  const today = new Date();
+  const weekAgo = new Date(today - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const weekDays = days.filter(d => d.date >= weekAgo && d.date <= today.toISOString().slice(0, 10));
+  const monthClean = days.filter(d => d.status === 'clean').length;
+  const monthRelapses = days.filter(d => d.status === 'relapse').length;
+  const monthUrgesResisted = days.filter(d => d.status === 'urge_resisted').length;
+  const weekClean = weekDays.filter(d => d.status === 'clean').length;
+  const weekRelapses = weekDays.filter(d => d.status === 'relapse').length;
+  const moods = days.filter(d => d.mood !== null).map(d => d.mood);
+  const avgMood = moods.length > 0 ? Math.round(moods.reduce((a, b) => a + b, 0) / moods.length * 10) / 10 : null;
+
+  return {
+    year,
+    month,
+    daysInMonth,
+    days,
+    stats: {
+      monthClean,
+      monthRelapses,
+      monthUrgesResisted,
+      weekClean,
+      weekRelapses,
+      avgMood,
+      totalDaysTracked: days.filter(d => d.status !== 'empty').length
+    }
+  };
+}
+
 // === DIARY / JOURNAL FUNCTIONS ===
 
 async function getDiaryEntry(date) {
@@ -1207,6 +1293,7 @@ module.exports = {
   logNoFapCheckin,
   logNoFapUrge,
   getNoFapHistory,
+  getTrackerData,
   NOFAP_MOTIVATIONS,
   EXERCISE_TYPES,
   PLANT_LEVELS,

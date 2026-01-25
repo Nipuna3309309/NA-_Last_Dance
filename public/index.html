@@ -28,7 +28,7 @@
             <span class="nav-icon">&#9829;</span> Favorites
           </button>
           <button class="nav-item" data-category="Internship">Internship</button>
-          <button class="nav-item" data-category="Research Paper">Research Paper</button>
+          <button class="nav-item" data-category="Research">Research</button>
           <button class="nav-item" data-category="IT4070">IT4070</button>
           <button class="nav-item" data-category="IT4031">IT4031</button>
           <button class="nav-item" data-category="IT4021">IT4021</button>
@@ -55,6 +55,35 @@
       </aside>
 
       <main class="main">
+        <!-- Daily Score Widget -->
+        <section class="daily-score-section">
+          <div class="daily-score-widget">
+            <div class="score-ring-container">
+              <svg class="score-ring" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="52" class="score-ring-bg"/>
+                <circle cx="60" cy="60" r="52" class="score-ring-fill" id="scoreRingFill"/>
+              </svg>
+              <div class="score-inner">
+                <span class="score-number" id="dailyScoreNumber">0</span>
+                <span class="score-label">Today</span>
+              </div>
+            </div>
+            <div class="score-info">
+              <div class="score-greeting" id="scoreGreeting">Good morning, Friend!</div>
+              <div class="score-context" id="scoreContext">Start your day strong!</div>
+              <div class="score-breakdown" id="scoreBreakdown">
+                <span class="sb-item" title="Streak bonus"><span class="sb-icon">&#128293;</span> <span id="sbStreak">0</span></span>
+                <span class="sb-item" title="Check-in"><span class="sb-icon">&#9989;</span> <span id="sbCheckin">0</span></span>
+                <span class="sb-item" title="Mood"><span class="sb-icon">&#128522;</span> <span id="sbMood">0</span></span>
+                <span class="sb-item" title="Tasks"><span class="sb-icon">&#9745;</span> <span id="sbTasks">0</span></span>
+                <span class="sb-item" title="Study"><span class="sb-icon">&#128218;</span> <span id="sbStudy">0</span></span>
+                <span class="sb-item" title="Exercise"><span class="sb-icon">&#127939;</span> <span id="sbExercise">0</span></span>
+              </div>
+            </div>
+            <button id="trophyBtn" class="trophy-btn" title="View Achievements">&#127942;</button>
+          </div>
+        </section>
+
         <!-- Motivational Quote Scroller -->
         <section class="quote-section">
           <div class="quote-container">
@@ -72,7 +101,7 @@
             <select id="filterCategory">
               <option value="">All categories</option>
               <option>Internship</option>
-              <option>Research Paper</option>
+              <option>Research</option>
               <option>IT4070</option>
               <option>IT4031</option>
               <option>IT4021</option>
@@ -116,6 +145,7 @@
             </div>
             <div class="stat streak-stat">
               <span id="statStreak" class="stat-value">0</span>
+              <span id="streakFire" class="streak-fire"></span>
               <span class="stat-label">Streak</span>
             </div>
           </div>
@@ -139,6 +169,16 @@
           </div>
           <button id="newTaskBtn" class="primary pulse-btn">+ New Task</button>
         </section>
+
+        <div id="researchTimeline" class="research-timeline hidden">
+          <div class="rtl-header">
+            <span class="rtl-title">Research Timeline</span>
+            <span class="rtl-subtitle">2025/26 July Batch</span>
+          </div>
+          <div class="rtl-track-wrapper">
+            <div class="rtl-track" id="rtlTrack"></div>
+          </div>
+        </div>
 
         <section id="viewContainer" class="view-container"></section>
 
@@ -270,6 +310,7 @@
                   </svg>
                   <div class="nf-streak-inner">
                     <span class="nf-streak-num" id="nofapStreakNumber">0</span>
+                    <span id="heroStreakFire" class="hero-streak-fire"></span>
                     <span class="nf-streak-unit">days</span>
                   </div>
                 </div>
@@ -280,10 +321,19 @@
               <div class="nf-hero-right">
                 <h2 class="nf-title">Stay Accountable</h2>
                 <p class="nf-motivation" id="nofapMotivation">Stay strong. You got this.</p>
+                <button type="button" id="aiMotivationBtn" class="ai-btn" title="Get AI-powered motivation">AI Boost</button>
                 <div class="nf-quick-stats">
                   <div class="nf-qs"><span id="nofapUrgesResisted" class="nf-qs-val">0</span><span class="nf-qs-label">Resisted</span></div>
                   <div class="nf-qs"><span id="nofapTotalRelapses" class="nf-qs-val">0</span><span class="nf-qs-label">Relapses</span></div>
                   <div class="nf-qs"><span id="nofapCheckinStatus" class="nf-qs-val checkin-pending">--</span><span class="nf-qs-label">Today</span></div>
+                </div>
+                <!-- Danger Hours Alert -->
+                <div id="dangerHoursAlert" class="danger-hours-alert hidden">
+                  <span class="danger-icon">&#9888;&#65039;</span>
+                  <div class="danger-content">
+                    <span class="danger-title">Danger Hours</span>
+                    <span id="dangerHoursText" class="danger-text">10PM-12AM</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -291,6 +341,7 @@
             <!-- Tab Navigation -->
             <div class="nf-tabs">
               <button class="nf-tab active" data-nftab="dashboard">Dashboard</button>
+              <button class="nf-tab" data-nftab="tracker">Tracker</button>
               <button class="nf-tab" data-nftab="journal">Journal</button>
               <button class="nf-tab" data-nftab="history">History</button>
             </div>
@@ -337,6 +388,52 @@
                   <button id="urgeTimerDoneBtn" class="primary nofap-btn">I Resisted!</button>
                   <button id="urgeTimerCancelBtn" class="ghost nofap-btn">Cancel</button>
                 </div>
+              </div>
+            </div>
+
+            <!-- Tab: Tracker & Analytics -->
+            <div class="nf-tab-panel" id="nfPanelTracker" data-nfpanel="tracker">
+              <div class="tracker-wrapper">
+                <!-- Week vs Last Week Comparison -->
+                <div class="week-comparison" id="weekComparison">
+                  <div class="wc-card">
+                    <span class="wc-icon">&#9989;</span>
+                    <div class="wc-data">
+                      <span class="wc-label">Tasks Done</span>
+                      <span class="wc-values"><strong id="wcTasksThis">0</strong> vs <span id="wcTasksLast">0</span></span>
+                    </div>
+                    <span id="wcTasksChange" class="wc-change positive">+0%</span>
+                  </div>
+                  <div class="wc-card">
+                    <span class="wc-icon">&#128218;</span>
+                    <div class="wc-data">
+                      <span class="wc-label">Study Time</span>
+                      <span class="wc-values"><strong id="wcStudyThis">0</strong> vs <span id="wcStudyLast">0</span> min</span>
+                    </div>
+                    <span id="wcStudyChange" class="wc-change positive">+0%</span>
+                  </div>
+                  <div class="wc-card">
+                    <span class="wc-icon">&#128170;</span>
+                    <div class="wc-data">
+                      <span class="wc-label">Clean Days</span>
+                      <span class="wc-values"><strong id="wcCleanThis">0</strong> this week</span>
+                    </div>
+                    <span class="wc-change neutral">7 max</span>
+                  </div>
+                </div>
+                <div class="tracker-month-nav">
+                  <button id="trackerPrevMonth" class="ghost">&larr;</button>
+                  <span id="trackerMonthLabel" class="tracker-month-title">January 2026</span>
+                  <button id="trackerNextMonth" class="ghost">&rarr;</button>
+                </div>
+                <div class="tracker-grid" id="trackerGrid"></div>
+                <div class="tracker-legend">
+                  <span class="tracker-legend-item"><span class="tracker-legend-dot tl-clean"></span> Clean</span>
+                  <span class="tracker-legend-item"><span class="tracker-legend-dot tl-urge"></span> Urge Resisted</span>
+                  <span class="tracker-legend-item"><span class="tracker-legend-dot tl-relapse"></span> Relapse</span>
+                  <span class="tracker-legend-item"><span class="tracker-legend-dot tl-empty"></span> No Data</span>
+                </div>
+                <div class="tracker-stats" id="trackerStats"></div>
               </div>
             </div>
 
@@ -394,6 +491,8 @@
                   </div>
                   <button type="submit" class="primary nofap-btn diary-save-btn" id="diarySaveBtn">Save Journal Entry</button>
                 </form>
+                <button type="button" id="aiInsightsBtn" class="ai-btn ai-insights-btn">Get AI Insights</button>
+                <div id="aiInsightsPanel" class="ai-insights-panel" style="display:none;"></div>
               </div>
               <div id="diaryPastEntries" class="diary-past-entries"></div>
             </div>
@@ -427,7 +526,7 @@
               Category
               <select name="category" id="categoryInput">
                 <option>Internship</option>
-                <option>Research Paper</option>
+                <option>Research</option>
                 <option>IT4070</option>
                 <option>IT4031</option>
                 <option>IT4021</option>
@@ -461,6 +560,8 @@
             Description
             <textarea name="description" id="descriptionInput" rows="3" placeholder="Add more details..."></textarea>
           </label>
+          <button type="button" id="aiSuggestBtn" class="ai-btn ai-suggest-btn">AI Suggest</button>
+          <div id="aiSuggestPanel" class="ai-suggest-panel" style="display:none;"></div>
           <button type="submit" class="primary" id="saveBtn">Save Task</button>
         </form>
       </div>
@@ -519,7 +620,7 @@
               <select name="category" id="studyCategoryInput">
                 <option value="">General</option>
                 <option>Internship</option>
-                <option>Research Paper</option>
+                <option>Research</option>
                 <option>IT4070</option>
                 <option>IT4031</option>
                 <option>IT4021</option>
@@ -553,6 +654,26 @@
           <button type="button" id="closeHistory" class="ghost">Close</button>
         </div>
         <div id="historyContent" class="history-content"></div>
+      </div>
+    </div>
+
+    <!-- Badges Modal -->
+    <div id="badgesModalOverlay" class="modal-overlay">
+      <div class="modal modal-lg">
+        <div class="form-header">
+          <h2>&#127942; Achievements</h2>
+          <button type="button" id="closeBadges" class="ghost">Close</button>
+        </div>
+        <div id="badgesGrid" class="badges-grid"></div>
+      </div>
+    </div>
+
+    <!-- Badge Toast -->
+    <div id="badgeToast" class="badge-toast hidden">
+      <span class="badge-toast-icon">&#127942;</span>
+      <div class="badge-toast-content">
+        <span class="badge-toast-title">Badge Unlocked!</span>
+        <span id="badgeToastName" class="badge-toast-name"></span>
       </div>
     </div>
 
